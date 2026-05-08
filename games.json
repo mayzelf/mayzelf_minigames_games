@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "games": [
+    {
+      "id": "labyrinth",
+      "name": "Labyrinth",
+      "description": "Find your way through a randomly generated maze. Each level grows larger — how deep can you go?",
+      "controls": [
+        "Arrow Keys / WASD — move",
+        "R — restart current level"
+      ],
+      "category": "puzzle",
+      "color": "#6366f1",
+      "emoji": "🌀",
+      "url": "https://mayzelf.github.io/minigames-games/games/labyrinth/"
+    }
+  ]
+}

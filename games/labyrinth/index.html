@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Labyrinth</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f1419;
+      color: #f0f4f8;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    #hud {
+      display: flex;
+      gap: 32px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: #94a3b8;
+      letter-spacing: 0.05em;
+    }
+
+    #hud span { color: #f0f4f8; font-weight: 600; }
+
+    #canvas-wrap {
+      position: relative;
+      line-height: 0;
+    }
+
+    canvas {
+      display: block;
+      border-radius: 6px;
+      border: 1px solid #1e293b;
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 20, 25, 0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      gap: 12px;
+    }
+
+    #overlay.hidden { display: none; }
+
+    #overlay h2 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #f0f4f8;
+    }
+
+    #overlay p {
+      font-size: 14px;
+      color: #94a3b8;
+      text-align: center;
+      max-width: 260px;
+      line-height: 1.6;
+    }
+
+    #overlay button {
+      margin-top: 8px;
+      padding: 10px 28px;
+      border-radius: 6px;
+      border: none;
+      background: #6366f1;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #overlay button:hover { background: #818cf8; }
+
+    /* mobile d-pad */
+    #dpad {
+      display: none;
+      margin-top: 12px;
+      gap: 4px;
+      grid-template-columns: repeat(3, 44px);
+      grid-template-rows: repeat(3, 44px);
+    }
+
+    @media (pointer: coarse) { #dpad { display: grid; } }
+
+    #dpad button {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #f0f4f8;
+      font-size: 18px;
+      cursor: pointer;
+      transition: background 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #dpad button:active { background: #6366f1; }
+    #dpad .blank { background: transparent; border: none; pointer-events: none; }
+  </style>
+</head>
+<body>
+
+<div id="hud">
+  LEVEL <span id="lbl-level">1</span>
+  &nbsp;·&nbsp;
+  TIME <span id="lbl-time">0:00</span>
+  &nbsp;·&nbsp;
+  BEST <span id="lbl-best">—</span>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="game"></canvas>
+  <div id="overlay">
+    <h2>🌀 Labyrinth</h2>
+    <p>Navigate the maze to reach the <strong style="color:#6366f1">purple exit</strong>.<br>Each level the maze grows larger.</p>
+    <button id="btn-start">Start Game</button>
+  </div>
+</div>
+
+<div id="dpad">
+  <div class="blank"></div>
+  <button data-dir="up">▲</button>
+  <div class="blank"></div>
+  <button data-dir="left">◀</button>
+  <div class="blank"></div>
+  <button data-dir="right">▶</button>
+  <div class="blank"></div>
+  <button data-dir="down">▼</button>
+  <div class="blank"></div>
+</div>
+
+<script>
+// ─── constants ───────────────────────────────────────────────────────────────
+
+const CANVAS_W = Math.min(window.innerWidth - 24, 600);
+const CANVAS_H = Math.min(window.innerHeight - 110, 440);
+
+const COLORS = {
+  bg:     '#0f1419',
+  wall:   '#1e293b',
+  path:   '#111827',
+  player: '#f0f4f8',
+  exit:   '#6366f1',
+  trail:  '#1e3a5f',
+  visited:'#141e2b',
+};
+
+// ─── state ───────────────────────────────────────────────────────────────────
+
+const canvas = document.getElementById('game');
+const ctx    = canvas.getContext('2d');
+canvas.width  = CANVAS_W;
+canvas.height = CANVAS_H;
+
+const overlay   = document.getElementById('overlay');
+const btnStart  = document.getElementById('btn-start');
+const lblLevel  = document.getElementById('lbl-level');
+const lblTime   = document.getElementById('lbl-time');
+const lblBest   = document.getElementById('lbl-best');
+
+let maze, cols, rows, cellSize;
+let playerCol, playerRow;
+let visited; // bool grid for trail
+let level = 1;
+let startTime, timerInterval;
+let elapsed = 0; // seconds
+let bests = JSON.parse(localStorage.getItem('labyrinth-bests') || '{}');
+let running = false;
+let moving = false; // throttle touch/key repeat
+
+// ─── maze generation (recursive backtracking) ────────────────────────────────
+
+// Each cell: { walls: [N,E,S,W] (true=wall), visited: bool }
+function buildMaze(c, r) {
+  const grid = Array.from({ length: r }, () =>
+    Array.from({ length: c }, () => ({ walls: [true, true, true, true], seen: false }))
+  );
+
+  const stack = [];
+  const start = { col: 0, row: 0 };
+  grid[0][0].seen = true;
+  stack.push(start);
+
+  const DIRS = [
+    { dc: 0, dr: -1, wall: 0, opp: 2 }, // N
+    { dc: 1, dr:  0, wall: 1, opp: 3 }, // E
+    { dc: 0, dr:  1, wall: 2, opp: 0 }, // S
+    { dc:-1, dr:  0, wall: 3, opp: 1 }, // W
+  ];
+
+  while (stack.length) {
+    const { col, row } = stack[stack.length - 1];
+    const neighbors = DIRS
+      .map(d => ({ ...d, nc: col + d.dc, nr: row + d.dr }))
+      .filter(d => d.nc >= 0 && d.nc < c && d.nr >= 0 && d.nr < r && !grid[d.nr][d.nc].seen);
+
+    if (!neighbors.length) { stack.pop(); continue; }
+
+    const chosen = neighbors[Math.floor(Math.random() * neighbors.length)];
+    grid[row][col].walls[chosen.wall]     = false;
+    grid[chosen.nr][chosen.nc].walls[chosen.opp] = false;
+    grid[chosen.nr][chosen.nc].seen = true;
+    stack.push({ col: chosen.nc, row: chosen.nr });
+  }
+
+  return grid;
+}
+
+// ─── level setup ─────────────────────────────────────────────────────────────
+
+function computeGrid(lv) {
+  const base = 7;
+  const step = 2;
+  const maxCols = Math.floor(CANVAS_W / 14);
+  const maxRows = Math.floor(CANVAS_H / 14);
+  const c = Math.min(base + (lv - 1) * step, maxCols);
+  const r = Math.min(base + (lv - 1) * step, maxRows);
+  const cs = Math.min(Math.floor(CANVAS_W / c), Math.floor(CANVAS_H / r));
+  return { c, r, cs };
+}
+
+function startLevel(lv) {
+  const { c, r, cs } = computeGrid(lv);
+  cols = c; rows = r; cellSize = cs;
+  maze = buildMaze(cols, rows);
+  playerCol = 0;
+  playerRow = 0;
+  visited = Array.from({ length: rows }, () => new Array(cols).fill(false));
+  visited[0][0] = true;
+  lblLevel.textContent = lv;
+  elapsed = 0;
+  clearInterval(timerInterval);
+  startTime = Date.now();
+  timerInterval = setInterval(tickTimer, 500);
+  running = true;
+  draw();
+}
+
+function tickTimer() {
+  if (!running) return;
+  elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  lblTime.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// ─── drawing ─────────────────────────────────────────────────────────────────
+
+function draw() {
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // center the maze on canvas
+  const mazeW = cols * cellSize;
+  const mazeH = rows * cellSize;
+  const ox = Math.floor((CANVAS_W - mazeW) / 2);
+  const oy = Math.floor((CANVAS_H - mazeH) / 2);
+
+  // background
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // cells
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = ox + c * cellSize;
+      const y = oy + r * cellSize;
+      ctx.fillStyle = visited[r][c] ? COLORS.visited : COLORS.path;
+      ctx.fillRect(x + 1, y + 1, cellSize - 1, cellSize - 1);
+    }
+  }
+
+  // exit glow
+  const ex = ox + (cols - 1) * cellSize;
+  const ey = oy + (rows - 1) * cellSize;
+  ctx.fillStyle = COLORS.exit + '33';
+  ctx.fillRect(ex + 1, ey + 1, cellSize - 1, cellSize - 1);
+
+  // exit marker
+  ctx.fillStyle = COLORS.exit;
+  const pad = Math.max(3, Math.floor(cellSize * 0.22));
+  ctx.beginPath();
+  ctx.roundRect(ex + pad, ey + pad, cellSize - pad * 2, cellSize - pad * 2, 3);
+  ctx.fill();
+
+  // walls
+  ctx.strokeStyle = COLORS.wall;
+  ctx.lineWidth = 1.5;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = ox + c * cellSize;
+      const y = oy + r * cellSize;
+      const cell = maze[r][c];
+      ctx.beginPath();
+      if (cell.walls[0]) { ctx.moveTo(x, y);            ctx.lineTo(x + cellSize, y); }
+      if (cell.walls[1]) { ctx.moveTo(x + cellSize, y); ctx.lineTo(x + cellSize, y + cellSize); }
+      if (cell.walls[2]) { ctx.moveTo(x, y + cellSize); ctx.lineTo(x + cellSize, y + cellSize); }
+      if (cell.walls[3]) { ctx.moveTo(x, y);            ctx.lineTo(x, y + cellSize); }
+      ctx.stroke();
+    }
+  }
+
+  // player
+  const px = ox + playerCol * cellSize + cellSize / 2;
+  const py = oy + playerRow * cellSize + cellSize / 2;
+  const pr = Math.max(3, cellSize * 0.28);
+  ctx.fillStyle = COLORS.player;
+  ctx.beginPath();
+  ctx.arc(px, py, pr, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ─── movement ────────────────────────────────────────────────────────────────
+
+// dir: 0=N 1=E 2=S 3=W
+function tryMove(dir) {
+  if (!running) return;
+  const cell = maze[playerRow][playerCol];
+  if (cell.walls[dir]) return;
+  if (dir === 0) playerRow--;
+  if (dir === 1) playerCol++;
+  if (dir === 2) playerRow++;
+  if (dir === 3) playerCol--;
+  visited[playerRow][playerCol] = true;
+  draw();
+  checkWin();
+}
+
+function checkWin() {
+  if (playerCol === cols - 1 && playerRow === rows - 1) {
+    running = false;
+    clearInterval(timerInterval);
+    const finalTime = Math.floor((Date.now() - startTime) / 1000);
+    elapsed = finalTime;
+    tickTimer();
+
+    const key = String(level);
+    const prev = bests[key];
+    if (!prev || finalTime < prev) {
+      bests[key] = finalTime;
+      localStorage.setItem('labyrinth-bests', JSON.stringify(bests));
+    }
+    updateBestLabel();
+    showWin(finalTime);
+  }
+}
+
+function updateBestLabel() {
+  const key = String(level);
+  const b = bests[key];
+  if (b !== undefined) {
+    const m = Math.floor(b / 60);
+    const s = b % 60;
+    lblBest.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+  } else {
+    lblBest.textContent = '—';
+  }
+}
+
+function showWin(t) {
+  const m = Math.floor(t / 60);
+  const s = t % 60;
+  const timeStr = `${m}:${s.toString().padStart(2, '0')}`;
+  overlay.innerHTML = `
+    <h2>Level ${level} Clear!</h2>
+    <p>Time: <strong style="color:#6366f1">${timeStr}</strong></p>
+    <button id="btn-next">Next Level →</button>
+  `;
+  overlay.classList.remove('hidden');
+  document.getElementById('btn-next').addEventListener('click', () => {
+    level++;
+    overlay.classList.add('hidden');
+    startLevel(level);
+    updateBestLabel();
+  });
+}
+
+// ─── input ───────────────────────────────────────────────────────────────────
+
+const KEY_MAP = {
+  ArrowUp: 0, KeyW: 0, ArrowRight: 1, KeyD: 1,
+  ArrowDown: 2, KeyS: 2, ArrowLeft: 3, KeyA: 3,
+};
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'KeyR') { restartCurrent(); return; }
+  const dir = KEY_MAP[e.code];
+  if (dir === undefined) return;
+  e.preventDefault();
+  tryMove(dir);
+});
+
+const DPAD_MAP = { up: 0, right: 1, down: 2, left: 3 };
+document.querySelectorAll('#dpad button[data-dir]').forEach(btn => {
+  const dir = DPAD_MAP[btn.dataset.dir];
+  btn.addEventListener('click', () => tryMove(dir));
+});
+
+function restartCurrent() {
+  overlay.classList.add('hidden');
+  startLevel(level);
+  updateBestLabel();
+}
+
+// ─── boot ─────────────────────────────────────────────────────────────────────
+
+btnStart.addEventListener('click', () => {
+  level = 1;
+  overlay.classList.add('hidden');
+  startLevel(level);
+  updateBestLabel();
+});
+
+// draw blank canvas before game starts
+ctx.fillStyle = COLORS.bg;
+ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+</script>
+</body>
+</html>
