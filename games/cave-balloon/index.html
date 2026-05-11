@@ -115,7 +115,7 @@
 const GRAVITY      = 0.15;
 const THRUST       = -4.5;
 const ROCK_SPEED   = 1.6;
-const ROCK_GAP     = 190;     // vertical gap between top and bottom rocks
+const ROCK_GAP     = 230;     // vertical gap between top and bottom rocks
 const ROCK_INTERVAL= 90;      // frames between new rock columns
 const ROCK_WIDTH   = 52;
 const BALLOON_R    = 18;      // balloon circle radius
@@ -177,8 +177,10 @@ function spawnStars() {
 function newRock(x) {
   const minTop = CAVE_TOP + 30;
   const maxTop = H - CAVE_BOTTOM - ROCK_GAP - 30;
-  const topH = minTop + Math.random() * (maxTop - minTop);
-  rocks.push({ x, topH });
+  const topH = maxTop > minTop
+    ? minTop + Math.random() * (maxTop - minTop)
+    : (H - CAVE_TOP - CAVE_BOTTOM - ROCK_GAP) / 2 + CAVE_TOP;
+  rocks.push({ x, topH, scored: false });
 }
 
 function rockPassed(r) {
@@ -251,10 +253,13 @@ function checkCollision() {
 }
 
 // ─── scoring ─────────────────────────────────────────────────────────────────
-function countPassed() {
-  let n = 0;
-  for (const r of rocks) if (rockPassed(r)) n++;
-  return n;
+function updateScore() {
+  for (const r of rocks) {
+    if (!r.scored && rockPassed(r)) {
+      r.scored = true;
+      score++;
+    }
+  }
 }
 
 // ─── draw ────────────────────────────────────────────────────────────────────
@@ -353,6 +358,26 @@ function drawBalloon() {
   ctx.lineWidth = 1;
   ctx.strokeRect(-BASKET_W / 2, BALLOON_R + 6, BASKET_W, BASKET_H);
 
+  // burner flame — drawn before balloon body so envelope overlaps it (looks like it shoots inside)
+  const flameBase = BALLOON_R + 4;
+  const flameTip  = BALLOON_R - 10 - Math.random() * 4;
+  ctx.globalAlpha = 0.9 + Math.sin(frame * 0.4) * 0.1;
+  ctx.fillStyle = '#f97316';
+  ctx.beginPath();
+  ctx.moveTo(-5, flameBase);
+  ctx.lineTo(0, flameTip);
+  ctx.lineTo(5, flameBase);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#fde68a';
+  ctx.beginPath();
+  ctx.moveTo(-2.5, flameBase);
+  ctx.lineTo(0, flameTip + 5);
+  ctx.lineTo(2.5, flameBase);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
   // balloon body (circle with gradient-like highlight)
   ctx.fillStyle = CLR_BALLOON;
   ctx.beginPath();
@@ -380,28 +405,6 @@ function drawBalloon() {
   ctx.globalAlpha = 0.45;
   ctx.beginPath();
   ctx.arc(-BALLOON_R * 0.3, -BALLOON_R * 0.3, BALLOON_R * 0.4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // burner flame — sits in the opening at the bottom of the envelope, shoots upward
-  const flameBase = BALLOON_R - 1;
-  const flameTip  = BALLOON_R - 13 - Math.random() * 4;
-  ctx.globalAlpha = 0.9 + Math.sin(frame * 0.4) * 0.1;
-  // outer flame (orange)
-  ctx.fillStyle = '#f97316';
-  ctx.beginPath();
-  ctx.moveTo(-5, flameBase);
-  ctx.lineTo(0, flameTip);
-  ctx.lineTo(5, flameBase);
-  ctx.closePath();
-  ctx.fill();
-  // inner flame (yellow core)
-  ctx.fillStyle = '#fde68a';
-  ctx.beginPath();
-  ctx.moveTo(-2.5, flameBase);
-  ctx.lineTo(0, flameTip + 5);
-  ctx.lineTo(2.5, flameBase);
-  ctx.closePath();
   ctx.fill();
   ctx.globalAlpha = 1;
 
@@ -436,8 +439,8 @@ function loop() {
     for (const s of stars) { s.x -= s.sp; if (s.x < 0) s.x = W; }
   }
 
-  // score: count rocks whose right edge has passed balloon x
-  score = countPassed();
+  // score: increment once per rock column cleared
+  updateScore();
 
   // cull off-screen rocks
   rocks = rocks.filter(r => r.x + ROCK_WIDTH > -10);
