@@ -113,15 +113,15 @@
 <script>
 // ─── constants ───────────────────────────────────────────────────────────────
 const GRAVITY      = 0.15;
-const THRUST       = -7.2;
-const ROCK_SPEED   = 3.2;
+const THRUST       = -4.5;
+const ROCK_SPEED   = 1.6;
 const ROCK_GAP     = 190;     // vertical gap between top and bottom rocks
 const ROCK_INTERVAL= 90;      // frames between new rock columns
 const ROCK_WIDTH   = 52;
 const BALLOON_R    = 18;      // balloon circle radius
 const BASKET_W     = 14;
 const BASKET_H     = 10;
-const SPEED_INC    = 0.00025; // gradual speed increase per frame
+const SPEED_INC    = 0.0007;  // gradual speed increase per frame
 
 // cave wall height (top and bottom strips that are always solid rock)
 const CAVE_TOP    = 40;
@@ -383,13 +383,24 @@ function drawBalloon() {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // flame at top
+  // burner flame — sits in the opening at the bottom of the envelope, shoots upward
+  const flameBase = BALLOON_R - 1;
+  const flameTip  = BALLOON_R - 13 - Math.random() * 4;
+  ctx.globalAlpha = 0.9 + Math.sin(frame * 0.4) * 0.1;
+  // outer flame (orange)
   ctx.fillStyle = '#f97316';
-  ctx.globalAlpha = 0.8 + Math.sin(frame * 0.3) * 0.2;
   ctx.beginPath();
-  ctx.moveTo(-4, -BALLOON_R + 4);
-  ctx.lineTo(0, -BALLOON_R - 8 - Math.random() * 3);
-  ctx.lineTo(4, -BALLOON_R + 4);
+  ctx.moveTo(-5, flameBase);
+  ctx.lineTo(0, flameTip);
+  ctx.lineTo(5, flameBase);
+  ctx.closePath();
+  ctx.fill();
+  // inner flame (yellow core)
+  ctx.fillStyle = '#fde68a';
+  ctx.beginPath();
+  ctx.moveTo(-2.5, flameBase);
+  ctx.lineTo(0, flameTip + 5);
+  ctx.lineTo(2.5, flameBase);
   ctx.closePath();
   ctx.fill();
   ctx.globalAlpha = 1;
