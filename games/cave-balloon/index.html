@@ -112,7 +112,7 @@
 
 <script>
 // ─── constants ───────────────────────────────────────────────────────────────
-const GRAVITY      = 0.38;
+const GRAVITY      = 0.22;
 const THRUST       = -7.2;
 const ROCK_SPEED   = 3.2;
 const ROCK_GAP     = 190;     // vertical gap between top and bottom rocks
@@ -149,7 +149,7 @@ const scoreLine = document.getElementById('score-line');
 const bestLine  = document.getElementById('best-line');
 
 let W, H;
-let balloonY, velY, speed, frame, score, dead, started;
+let balloonY, velY, speed, frame, score, dead, started, waiting;
 let rocks = [];     // { x, topH }  — topH = height of top stalactite
 let stars = [];
 let best = parseInt(localStorage.getItem('cave-balloon-best') || '0');
@@ -193,6 +193,7 @@ function init() {
   frame    = 0;
   score    = 0;
   dead     = false;
+  waiting  = true;
   rocks    = [];
   started  = true;
   spawnStars();
@@ -206,6 +207,7 @@ function init() {
 // ─── input ───────────────────────────────────────────────────────────────────
 function flap() {
   if (dead) return;
+  waiting = false;
   velY = THRUST;
 }
 
@@ -405,18 +407,21 @@ function loop() {
   if (!started || dead) return;
 
   frame++;
-  speed += SPEED_INC;
 
-  // physics
-  velY += GRAVITY;
-  balloonY += velY;
+  if (!waiting) {
+    speed += SPEED_INC;
 
-  // spawn rocks
-  if (frame % ROCK_INTERVAL === 0) newRock(W + ROCK_WIDTH);
+    // physics
+    velY += GRAVITY;
+    balloonY += velY;
 
-  // move rocks & stars
-  for (const r of rocks) r.x -= speed;
-  for (const s of stars) { s.x -= s.sp; if (s.x < 0) s.x = W; }
+    // spawn rocks
+    if (frame % ROCK_INTERVAL === 0) newRock(W + ROCK_WIDTH);
+
+    // move rocks & stars
+    for (const r of rocks) r.x -= speed;
+    for (const s of stars) { s.x -= s.sp; if (s.x < 0) s.x = W; }
+  }
 
   // score: count rocks whose right edge has passed balloon x
   score = countPassed();
