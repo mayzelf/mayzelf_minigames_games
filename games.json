@@ -14,5 +14,18 @@
       "emoji": "🌀",
       "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/labyrinth/"
     }
+    ,{
+      "id": "cave-balloon",
+      "name": "Cave Balloon",
+      "description": "Pilot a blue hot air balloon through a rocky cave. Tap or press Space to float up and dodge the stalactites and stalagmites!",
+      "controls": [
+        "Space / Tap — float up",
+        "Avoid the rocks"
+      ],
+      "category": "action",
+      "color": "#3b82f6",
+      "emoji": "🎈",
+      "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/cave-balloon/"
+    }
   ]
 }

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cave Balloon</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0f1419;
+    color: #f0f4f8;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  canvas {
+    display: block;
+    border-radius: 8px;
+    border: 2px solid #2d3748;
+    touch-action: none;
+  }
+
+  #overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 20, 25, 0.88);
+    gap: 16px;
+    z-index: 10;
+  }
+
+  #overlay.hidden { display: none; }
+
+  #overlay h1 {
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 800;
+    color: #63b3ed;
+    letter-spacing: -1px;
+  }
+
+  #overlay p {
+    font-size: clamp(0.85rem, 2.5vw, 1rem);
+    color: #a0aec0;
+    text-align: center;
+    max-width: 320px;
+    line-height: 1.6;
+  }
+
+  #overlay .score-display {
+    font-size: clamp(1rem, 3vw, 1.3rem);
+    color: #f0f4f8;
+    font-weight: 600;
+  }
+
+  #overlay .best-display {
+    font-size: clamp(0.8rem, 2vw, 0.95rem);
+    color: #718096;
+  }
+
+  #start-btn {
+    background: #63b3ed;
+    color: #0f1419;
+    border: none;
+    padding: 12px 36px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-top: 4px;
+  }
+
+  #start-btn:hover { background: #90cdf4; }
+
+  .controls-hint {
+    font-size: 0.8rem;
+    color: #4a5568;
+    text-align: center;
+  }
+
+  #tap-zone {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div id="tap-zone" class="hidden"></div>
+
+<div id="overlay">
+  <h1>🎈 Cave Balloon</h1>
+  <p>Guide your hot air balloon through the rocky cave. Tap or press Space to float up — don't hit the rocks!</p>
+  <div id="score-line" class="score-display hidden"></div>
+  <div id="best-line" class="best-display"></div>
+  <button id="start-btn">Play</button>
+  <p class="controls-hint">Space / Tap — float up &nbsp;|&nbsp; avoid the rocks</p>
+</div>
+
+<script>
+// ─── constants ───────────────────────────────────────────────────────────────
+const GRAVITY      = 0.38;
+const THRUST       = -7.2;
+const ROCK_SPEED   = 3.2;
+const ROCK_GAP     = 190;     // vertical gap between top and bottom rocks
+const ROCK_INTERVAL= 90;      // frames between new rock columns
+const ROCK_WIDTH   = 52;
+const BALLOON_R    = 18;      // balloon circle radius
+const BASKET_W     = 14;
+const BASKET_H     = 10;
+const SPEED_INC    = 0.00025; // gradual speed increase per frame
+
+// cave wall height (top and bottom strips that are always solid rock)
+const CAVE_TOP    = 40;
+const CAVE_BOTTOM = 40;
+
+// colours
+const CLR_BG        = '#1a1e2e';
+const CLR_CAVE_WALL = '#2d3748';
+const CLR_ROCK_BODY = '#4a5568';
+const CLR_ROCK_EDGE = '#718096';
+const CLR_BALLOON   = '#3b82f6';
+const CLR_BALLOON_H = '#93c5fd';
+const CLR_BASKET    = '#92400e';
+const CLR_ROPE      = '#a0aec0';
+const CLR_SCORE     = '#f0f4f8';
+const CLR_STAR      = '#e2e8f0';
+
+// ─── state ───────────────────────────────────────────────────────────────────
+const canvas  = document.getElementById('c');
+const ctx     = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const tapZone = document.getElementById('tap-zone');
+const startBtn= document.getElementById('start-btn');
+const scoreLine = document.getElementById('score-line');
+const bestLine  = document.getElementById('best-line');
+
+let W, H;
+let balloonY, velY, speed, frame, score, dead, started;
+let rocks = [];     // { x, topH }  — topH = height of top stalactite
+let stars = [];
+let best = parseInt(localStorage.getItem('cave-balloon-best') || '0');
+
+// ─── resize ──────────────────────────────────────────────────────────────────
+function resize() {
+  const maxW = Math.min(window.innerWidth  - 16, 480);
+  const maxH = Math.min(window.innerHeight - 16, 700);
+  W = canvas.width  = maxW;
+  H = canvas.height = maxH;
+  if (started && !dead) spawnStars();
+}
+
+// ─── stars (parallax bg) ─────────────────────────────────────────────────────
+function spawnStars() {
+  stars = Array.from({ length: 40 }, () => ({
+    x: Math.random() * W,
+    y: CAVE_TOP + Math.random() * (H - CAVE_TOP - CAVE_BOTTOM),
+    r: Math.random() * 1.2 + 0.3,
+    sp: Math.random() * 0.4 + 0.1,
+  }));
+}
+
+// ─── rock helpers ────────────────────────────────────────────────────────────
+function newRock(x) {
+  const minTop = CAVE_TOP + 30;
+  const maxTop = H - CAVE_BOTTOM - ROCK_GAP - 30;
+  const topH = minTop + Math.random() * (maxTop - minTop);
+  rocks.push({ x, topH });
+}
+
+function rockPassed(r) {
+  return r.x + ROCK_WIDTH < W * 0.28 - BALLOON_R;
+}
+
+// ─── init ────────────────────────────────────────────────────────────────────
+function init() {
+  balloonY = H / 2;
+  velY     = 0;
+  speed    = ROCK_SPEED;
+  frame    = 0;
+  score    = 0;
+  dead     = false;
+  rocks    = [];
+  started  = true;
+  spawnStars();
+  // seed first rock a bit ahead
+  newRock(W + 80);
+  overlay.classList.add('hidden');
+  tapZone.classList.remove('hidden');
+  requestAnimationFrame(loop);
+}
+
+// ─── input ───────────────────────────────────────────────────────────────────
+function flap() {
+  if (dead) return;
+  velY = THRUST;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') {
+    e.preventDefault();
+    if (dead || !started) return;
+    flap();
+  }
+});
+
+tapZone.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  flap();
+});
+
+startBtn.addEventListener('click', init);
+
+// ─── collision ───────────────────────────────────────────────────────────────
+const BX = () => W * 0.28;  // balloon x center
+
+function checkCollision() {
+  const bx = BX(), by = balloonY;
+
+  // cave walls
+  if (by - BALLOON_R < CAVE_TOP || by + BALLOON_R + BASKET_H > H - CAVE_BOTTOM) return true;
+
+  // rocks
+  for (const r of rocks) {
+    const rx  = r.x, rr = rx + ROCK_WIDTH;
+    const hit = bx + BALLOON_R > rx && bx - BALLOON_R < rr;
+    if (!hit) continue;
+    // top stalactite
+    if (by - BALLOON_R < r.topH) return true;
+    // bottom stalagmite
+    if (by + BALLOON_R > r.topH + ROCK_GAP) return true;
+  }
+  return false;
+}
+
+// ─── scoring ─────────────────────────────────────────────────────────────────
+function countPassed() {
+  let n = 0;
+  for (const r of rocks) if (rockPassed(r)) n++;
+  return n;
+}
+
+// ─── draw ────────────────────────────────────────────────────────────────────
+function drawCave() {
+  // top wall
+  ctx.fillStyle = CLR_CAVE_WALL;
+  ctx.fillRect(0, 0, W, CAVE_TOP);
+  // bottom wall
+  ctx.fillRect(0, H - CAVE_BOTTOM, W, CAVE_BOTTOM);
+
+  // rough edge lines
+  ctx.strokeStyle = CLR_ROCK_EDGE;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, CAVE_TOP);
+  ctx.lineTo(W, CAVE_TOP);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, H - CAVE_BOTTOM);
+  ctx.lineTo(W, H - CAVE_BOTTOM);
+  ctx.stroke();
+}
+
+function drawStars() {
+  ctx.fillStyle = CLR_STAR;
+  for (const s of stars) {
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function jagged(x1, x2, baseY, dir, depth) {
+  // dir: 1 = downward (top rock), -1 = upward (bottom rock)
+  ctx.beginPath();
+  ctx.moveTo(x1, dir === 1 ? 0 : H);
+  ctx.lineTo(x1, baseY);
+  const segs = 6;
+  const segW = (x2 - x1) / segs;
+  for (let i = 0; i <= segs; i++) {
+    const nx = x1 + i * segW;
+    const ny = baseY + dir * (i % 2 === 0 ? depth * 0.4 : depth);
+    ctx.lineTo(nx, ny);
+  }
+  ctx.lineTo(x2, baseY);
+  ctx.lineTo(x2, dir === 1 ? 0 : H);
+  ctx.closePath();
+}
+
+function drawRocks() {
+  for (const r of rocks) {
+    const rx = Math.round(r.x);
+
+    // top stalactite
+    ctx.fillStyle = CLR_ROCK_BODY;
+    jagged(rx, rx + ROCK_WIDTH, r.topH, 1, 12);
+    ctx.fill();
+    ctx.strokeStyle = CLR_ROCK_EDGE;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // bottom stalagmite
+    const botTop = r.topH + ROCK_GAP;
+    ctx.fillStyle = CLR_ROCK_BODY;
+    jagged(rx, rx + ROCK_WIDTH, botTop, -1, 12);
+    ctx.fill();
+    ctx.strokeStyle = CLR_ROCK_EDGE;
+    ctx.stroke();
+  }
+}
+
+function drawBalloon() {
+  const bx = BX(), by = balloonY;
+  const tilt = Math.max(-0.3, Math.min(0.3, velY * 0.03));
+
+  ctx.save();
+  ctx.translate(bx, by);
+  ctx.rotate(tilt);
+
+  // ropes from balloon bottom to basket
+  ctx.strokeStyle = CLR_ROPE;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-BASKET_W / 2, BALLOON_R);
+  ctx.lineTo(-BASKET_W / 2, BALLOON_R + 6);
+  ctx.moveTo( BASKET_W / 2, BALLOON_R);
+  ctx.lineTo( BASKET_W / 2, BALLOON_R + 6);
+  ctx.stroke();
+
+  // basket
+  ctx.fillStyle = CLR_BASKET;
+  ctx.fillRect(-BASKET_W / 2, BALLOON_R + 6, BASKET_W, BASKET_H);
+  ctx.strokeStyle = '#78350f';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-BASKET_W / 2, BALLOON_R + 6, BASKET_W, BASKET_H);
+
+  // balloon body (circle with gradient-like highlight)
+  ctx.fillStyle = CLR_BALLOON;
+  ctx.beginPath();
+  ctx.arc(0, 0, BALLOON_R, 0, Math.PI * 2);
+  ctx.fill();
+
+  // balloon stripes
+  ctx.strokeStyle = '#2563eb';
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.5;
+  for (let a = -Math.PI / 2; a < Math.PI / 2; a += Math.PI / 4) {
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * BALLOON_R, Math.sin(a) * BALLOON_R);
+    ctx.bezierCurveTo(
+      Math.cos(a) * BALLOON_R * 0.3, Math.sin(a) * BALLOON_R,
+      Math.cos(a) * BALLOON_R * 0.3, -Math.sin(a) * BALLOON_R,
+      Math.cos(a) * BALLOON_R, -Math.sin(a) * BALLOON_R
+    );
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // highlight
+  ctx.fillStyle = CLR_BALLOON_H;
+  ctx.globalAlpha = 0.45;
+  ctx.beginPath();
+  ctx.arc(-BALLOON_R * 0.3, -BALLOON_R * 0.3, BALLOON_R * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // flame at top
+  ctx.fillStyle = '#f97316';
+  ctx.globalAlpha = 0.8 + Math.sin(frame * 0.3) * 0.2;
+  ctx.beginPath();
+  ctx.moveTo(-4, -BALLOON_R + 4);
+  ctx.lineTo(0, -BALLOON_R - 8 - Math.random() * 3);
+  ctx.lineTo(4, -BALLOON_R + 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawScore() {
+  ctx.fillStyle = CLR_SCORE;
+  ctx.font = `bold ${Math.round(W * 0.065)}px 'Segoe UI', system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText(score, W / 2, CAVE_TOP + 36);
+}
+
+// ─── game loop ────────────────────────────────────────────────────────────────
+function loop() {
+  if (!started || dead) return;
+
+  frame++;
+  speed += SPEED_INC;
+
+  // physics
+  velY += GRAVITY;
+  balloonY += velY;
+
+  // spawn rocks
+  if (frame % ROCK_INTERVAL === 0) newRock(W + ROCK_WIDTH);
+
+  // move rocks & stars
+  for (const r of rocks) r.x -= speed;
+  for (const s of stars) { s.x -= s.sp; if (s.x < 0) s.x = W; }
+
+  // score: count rocks whose right edge has passed balloon x
+  score = countPassed();
+
+  // cull off-screen rocks
+  rocks = rocks.filter(r => r.x + ROCK_WIDTH > -10);
+
+  // collision
+  if (checkCollision()) {
+    dead = true;
+    if (score > best) {
+      best = score;
+      localStorage.setItem('cave-balloon-best', best);
+    }
+    showDeath();
+    return;
+  }
+
+  // draw
+  ctx.fillStyle = CLR_BG;
+  ctx.fillRect(0, 0, W, H);
+  drawStars();
+  drawRocks();
+  drawCave();
+  drawBalloon();
+  drawScore();
+
+  requestAnimationFrame(loop);
+}
+
+// ─── death screen ─────────────────────────────────────────────────────────────
+function showDeath() {
+  // draw one last frame with death state
+  ctx.fillStyle = CLR_BG;
+  ctx.fillRect(0, 0, W, H);
+  drawStars();
+  drawRocks();
+  drawCave();
+  drawBalloon();
+  drawScore();
+
+  tapZone.classList.add('hidden');
+  overlay.classList.remove('hidden');
+
+  const h1 = overlay.querySelector('h1');
+  h1.textContent = '🎈 Cave Balloon';
+
+  scoreLine.textContent = `Score: ${score}`;
+  scoreLine.classList.remove('hidden');
+  bestLine.textContent = best > 0 ? `Best: ${best}` : '';
+
+  startBtn.textContent = 'Play Again';
+  overlay.querySelector('p').textContent =
+    score === 0
+      ? 'Oops! Try to get through at least one gap.'
+      : `You cleared ${score} gap${score === 1 ? '' : 's'}. Can you beat that?`;
+}
+
+// ─── boot ─────────────────────────────────────────────────────────────────────
+bestLine.textContent = best > 0 ? `Best: ${best}` : '';
+started = false;
+
+window.addEventListener('resize', resize);
+resize();
+</script>
+</body>
+</html>
