@@ -112,7 +112,7 @@
 
 <script>
 // ─── constants ───────────────────────────────────────────────────────────────
-const GRAVITY      = 0.22;
+const GRAVITY      = 0.15;
 const THRUST       = -7.2;
 const ROCK_SPEED   = 3.2;
 const ROCK_GAP     = 190;     // vertical gap between top and bottom rocks
@@ -149,7 +149,7 @@ const scoreLine = document.getElementById('score-line');
 const bestLine  = document.getElementById('best-line');
 
 let W, H;
-let balloonY, velY, speed, frame, score, dead, started, waiting;
+let balloonY, velY, speed, frame, score, dead, started, waiting, inputEnabled;
 let rocks = [];     // { x, topH }  — topH = height of top stalactite
 let stars = [];
 let best = parseInt(localStorage.getItem('cave-balloon-best') || '0');
@@ -192,8 +192,10 @@ function init() {
   speed    = ROCK_SPEED;
   frame    = 0;
   score    = 0;
-  dead     = false;
-  waiting  = true;
+  dead          = false;
+  waiting       = true;
+  inputEnabled  = false;
+  setTimeout(() => { inputEnabled = true; }, 250);
   rocks    = [];
   started  = true;
   spawnStars();
@@ -206,7 +208,7 @@ function init() {
 
 // ─── input ───────────────────────────────────────────────────────────────────
 function flap() {
-  if (dead) return;
+  if (dead || !inputEnabled) return;
   waiting = false;
   velY = THRUST;
 }
