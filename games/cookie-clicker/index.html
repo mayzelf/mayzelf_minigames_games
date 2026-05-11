@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cookie Clicker</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+
+body {
+  background: #0f1419;
+  color: #f0f4f8;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ─── header ─── */
+#stats-bar {
+  background: #151d2e;
+  border-bottom: 1px solid #2d3748;
+  padding: 10px 16px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.stat { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+.stat-val {
+  font-size: clamp(0.95rem, 2.8vw, 1.4rem);
+  font-weight: 700;
+  color: #f6c453;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.stat-lbl {
+  font-size: clamp(0.55rem, 1.5vw, 0.65rem);
+  color: #4a5568;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+#reset-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid #2d3748;
+  color: #4a5568;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color 0.1s, color 0.1s;
+}
+#reset-btn:hover { border-color: #e53e3e; color: #e53e3e; }
+
+/* ─── main layout ─── */
+#main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ─── cookie side ─── */
+#cookie-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+}
+
+#cookie-btn {
+  font-size: clamp(80px, 18vw, 140px);
+  line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.06s, filter 0.1s;
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 0 20px rgba(246,196,83,0.15));
+}
+#cookie-btn:hover { filter: drop-shadow(0 0 32px rgba(246,196,83,0.4)); }
+#cookie-btn:active { transform: scale(0.86); }
+
+#total-baked {
+  font-size: 0.82rem;
+  color: #4a5568;
+}
+
+/* ─── floating +N ─── */
+.float {
+  position: absolute;
+  color: #f6c453;
+  font-weight: 700;
+  font-size: 1rem;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 5;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  animation: rise 1s ease-out forwards;
+}
+@keyframes rise {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-72px) scale(0.75); }
+}
+
+/* ─── shop side ─── */
+#shop-side {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #151d2e;
+  border-left: 1px solid #2d3748;
+  overflow: hidden;
+}
+
+#shop-title {
+  padding: 10px 14px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #4a5568;
+  border-bottom: 1px solid #2d3748;
+  flex-shrink: 0;
+}
+
+#shop-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #2d3748 transparent;
+}
+#shop-list::-webkit-scrollbar { width: 4px; }
+#shop-list::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 2px; }
+
+.s-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #2d3748;
+  padding: 8px 8px 3px;
+}
+
+/* ─── shop row ─── */
+.s-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  margin-bottom: 3px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, opacity 0.15s;
+}
+.s-row.afford {
+  background: rgba(246,196,83,0.06);
+  border-color: rgba(246,196,83,0.18);
+}
+.s-row.afford:hover {
+  background: rgba(246,196,83,0.13);
+  border-color: rgba(246,196,83,0.35);
+}
+.s-row.poor { opacity: 0.38; cursor: default; }
+
+.s-em  { font-size: 1.5rem; flex-shrink: 0; line-height: 1; }
+.s-inf { flex: 1; min-width: 0; }
+.s-name  { font-size: 0.82rem; font-weight: 600; }
+.s-desc  { font-size: 0.68rem; color: #718096; line-height: 1.3; }
+.s-owned { font-size: 0.65rem; color: #68d391; margin-top: 2px; }
+.s-rt    { text-align: right; flex-shrink: 0; }
+.s-cost  { font-size: 0.82rem; font-weight: 700; color: #f6c453; }
+.s-rate  { font-size: 0.65rem; color: #718096; }
+
+/* ─── mobile ─── */
+@media (max-width: 580px) {
+  body { overflow-y: auto; height: auto; }
+  #main { flex-direction: column; overflow: visible; }
+  #cookie-side { padding: 24px 0 16px; min-height: 240px; }
+  #shop-side { width: 100%; border-left: none; border-top: 1px solid #2d3748; max-height: 55vh; }
+}
+</style>
+</head>
+<body>
+
+<div id="stats-bar">
+  <div class="stat">
+    <div class="stat-val" id="s-bal">0</div>
+    <div class="stat-lbl">🍪 Cookies</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" id="s-cps">0</div>
+    <div class="stat-lbl">Per second</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" id="s-cpc">1</div>
+    <div class="stat-lbl">Per click</div>
+  </div>
+  <button id="reset-btn">Reset</button>
+</div>
+
+<div id="main">
+  <div id="cookie-side">
+    <button id="cookie-btn" aria-label="Click to bake a cookie">🍪</button>
+    <div id="total-baked"></div>
+  </div>
+
+  <div id="shop-side">
+    <div id="shop-title">🛒 Shop</div>
+    <div id="shop-list"></div>
+  </div>
+</div>
+
+<script>
+// ─── game data ────────────────────────────────────────────────────────────────
+const BUILDINGS = [
+  { id:'cursor',  name:'Cursor',  emoji:'🖱️', baseCost:15,       baseCps:0.1,  desc:'Autoclicks the big cookie' },
+  { id:'grandma', name:'Grandma', emoji:'👵', baseCost:100,      baseCps:0.8,  desc:'Bakes cookies with love' },
+  { id:'farm',    name:'Farm',    emoji:'🌾', baseCost:1100,     baseCps:8,    desc:'Grows cookie crops' },
+  { id:'factory', name:'Factory', emoji:'🏭', baseCost:12000,    baseCps:47,   desc:'Mass-produces cookies' },
+  { id:'mine',    name:'Mine',    emoji:'⛏️', baseCost:130000,   baseCps:260,  desc:'Mines deep cookie deposits' },
+  { id:'bank',    name:'Bank',    emoji:'🏦', baseCost:1400000,  baseCps:1400, desc:'Generates cookie interest' },
+];
+
+const UPGRADES = [
+  // click multipliers
+  { id:'c1', name:'Reinforced Finger',     emoji:'☝️', cost:100,       desc:'Clicks are twice as powerful',      type:'click',    mult:2, unlock:{cookies:10} },
+  { id:'c2', name:'Carpal Toughener',      emoji:'💪', cost:500,       desc:'Clicks are twice as powerful',      type:'click',    mult:2, unlock:{cookies:100} },
+  { id:'c3', name:'Ambidextrous',          emoji:'🤲', cost:10000,     desc:'Clicks are twice as powerful',      type:'click',    mult:2, unlock:{cookies:2000} },
+  { id:'c4', name:'Thousand Fingers',      emoji:'🖐️', cost:100000,    desc:'Clicks are twice as powerful',      type:'click',    mult:2, unlock:{cookies:20000} },
+  // grandma
+  { id:'b1', name:'Forwards from Grandma', emoji:'📧', cost:1000,      desc:'Grandmas are twice as productive',  type:'building', building:'grandma', mult:2, unlock:{building:'grandma',n:1} },
+  { id:'b2', name:'Secret Recipe',         emoji:'📖', cost:5000,      desc:'Grandmas are twice as productive',  type:'building', building:'grandma', mult:2, unlock:{building:'grandma',n:5} },
+  // farm
+  { id:'b3', name:'Cheap Hoes',            emoji:'🌻', cost:11000,     desc:'Farms are twice as productive',     type:'building', building:'farm',    mult:2, unlock:{building:'farm',n:1} },
+  { id:'b4', name:'Irrigation',            emoji:'💧', cost:55000,     desc:'Farms are twice as productive',     type:'building', building:'farm',    mult:2, unlock:{building:'farm',n:5} },
+  // factory
+  { id:'b5', name:'Sturdier Conveyor',     emoji:'⚙️', cost:120000,    desc:'Factories are twice as productive', type:'building', building:'factory', mult:2, unlock:{building:'factory',n:1} },
+  { id:'b6', name:'Overtime',              emoji:'🔧', cost:600000,    desc:'Factories are twice as productive', type:'building', building:'factory', mult:2, unlock:{building:'factory',n:5} },
+  // mine
+  { id:'b7', name:'Sugar Gas',             emoji:'💨', cost:1300000,   desc:'Mines are twice as productive',     type:'building', building:'mine',    mult:2, unlock:{building:'mine',n:1} },
+  { id:'b8', name:'Deep Drills',           emoji:'🪨', cost:6500000,   desc:'Mines are twice as productive',     type:'building', building:'mine',    mult:2, unlock:{building:'mine',n:5} },
+  // bank
+  { id:'b9', name:'Compound Interest',     emoji:'📈', cost:14000000,  desc:'Banks are twice as productive',     type:'building', building:'bank',    mult:2, unlock:{building:'bank',n:1} },
+  // global
+  { id:'w1', name:'Lucky Day',             emoji:'🍀', cost:777777,    desc:'All production ×2',                 type:'global',   mult:2, unlock:{cookies:500000} },
+  { id:'w2', name:'Cookie Storm',          emoji:'⚡', cost:7777777,   desc:'All production ×2',                 type:'global',   mult:2, unlock:{cookies:5000000} },
+];
+
+// ─── state ────────────────────────────────────────────────────────────────────
+let cookies = 0;
+let totalCookies = 0;
+let buildingCounts = {};
+let purchasedUpgrades = new Set();
+
+// ─── computed ─────────────────────────────────────────────────────────────────
+function getBldgMult(id) {
+  return UPGRADES
+    .filter(u => u.type === 'building' && u.building === id && purchasedUpgrades.has(u.id))
+    .reduce((m, u) => m * u.mult, 1);
+}
+
+function getGlobalMult() {
+  return UPGRADES
+    .filter(u => u.type === 'global' && purchasedUpgrades.has(u.id))
+    .reduce((m, u) => m * u.mult, 1);
+}
+
+function getClickMult() {
+  return UPGRADES
+    .filter(u => u.type === 'click' && purchasedUpgrades.has(u.id))
+    .reduce((m, u) => m * u.mult, 1);
+}
+
+function getCPS() {
+  const raw = BUILDINGS.reduce((s, b) => {
+    const n = buildingCounts[b.id] || 0;
+    return s + b.baseCps * n * getBldgMult(b.id);
+  }, 0);
+  return raw * getGlobalMult();
+}
+
+function getClickPower() {
+  return (1 + getCPS() * 0.01) * getClickMult();
+}
+
+function getBldgCost(b) {
+  const n = buildingCounts[b.id] || 0;
+  return Math.ceil(b.baseCost * Math.pow(1.15, n));
+}
+
+function isUnlocked(u) {
+  if (purchasedUpgrades.has(u.id)) return false;
+  const { unlock } = u;
+  if (unlock.cookies   !== undefined && totalCookies < unlock.cookies) return false;
+  if (unlock.building  !== undefined && (buildingCounts[unlock.building] || 0) < unlock.n) return false;
+  return true;
+}
+
+// ─── actions ─────────────────────────────────────────────────────────────────
+function clickCookie(e) {
+  const power = getClickPower();
+  cookies      += power;
+  totalCookies += power;
+
+  const area = document.getElementById('cookie-side');
+  const rect = area.getBoundingClientRect();
+  const x = (e.clientX ?? rect.left + rect.width  / 2) - rect.left;
+  const y = (e.clientY ?? rect.top  + rect.height / 2) - rect.top;
+  spawnFloat(x, y, '+' + fmtShort(power));
+
+  updateStats();
+}
+
+function buyBuilding(id) {
+  const b    = BUILDINGS.find(b => b.id === id);
+  const cost = getBldgCost(b);
+  if (cookies < cost) return;
+  cookies -= cost;
+  buildingCounts[id] = (buildingCounts[id] || 0) + 1;
+  rebuildShop();
+  updateStats();
+}
+
+function buyUpgrade(id) {
+  const u = UPGRADES.find(u => u.id === id);
+  if (!u || purchasedUpgrades.has(u.id) || cookies < u.cost) return;
+  cookies -= u.cost;
+  purchasedUpgrades.add(id);
+  rebuildShop();
+  updateStats();
+}
+
+// ─── formatting ───────────────────────────────────────────────────────────────
+const TIERS_S = ['','K','M','B','T','Qa','Qi'];
+const TIERS_L = ['','thousand','million','billion','trillion','quadrillion','quintillion'];
+
+function fmtShort(n) {
+  if (n < 1000) return (Math.floor(n * 10) / 10).toString();
+  const t = Math.min(Math.floor(Math.log10(n) / 3), TIERS_S.length - 1);
+  const v = n / Math.pow(1000, t);
+  return (v < 10 ? v.toFixed(1) : Math.floor(v)) + TIERS_S[t];
+}
+
+function fmtFull(n) {
+  if (n < 1000) return Math.floor(n).toLocaleString();
+  const t = Math.min(Math.floor(Math.log10(n) / 3), TIERS_L.length - 1);
+  const v = n / Math.pow(1000, t);
+  return (v < 10 ? v.toFixed(2) : v.toFixed(1)) + ' ' + TIERS_L[t];
+}
+
+// ─── floating text ────────────────────────────────────────────────────────────
+function spawnFloat(x, y, text) {
+  const el = document.createElement('span');
+  el.className = 'float';
+  el.textContent = text;
+  el.style.left = (x - 16) + 'px';
+  el.style.top  = (y - 16) + 'px';
+  document.getElementById('cookie-side').appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+// ─── stats ────────────────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('s-bal').textContent  = fmtShort(cookies);
+  document.getElementById('s-cps').textContent  = fmtShort(getCPS());
+  document.getElementById('s-cpc').textContent  = fmtShort(getClickPower());
+  document.getElementById('total-baked').textContent =
+    fmtFull(totalCookies) + ' cookies baked';
+}
+
+// ─── shop ─────────────────────────────────────────────────────────────────────
+function rebuildShop() {
+  const list      = document.getElementById('shop-list');
+  const savedTop  = list.scrollTop;
+  list.innerHTML  = '';
+
+  const avail = UPGRADES.filter(isUnlocked);
+  if (avail.length) {
+    list.appendChild(sLabel('Upgrades'));
+    avail.forEach(u => list.appendChild(makeUpgradeRow(u)));
+  }
+
+  list.appendChild(sLabel('Buildings'));
+  BUILDINGS.forEach(b => list.appendChild(makeBldgRow(b)));
+
+  list.scrollTop = savedTop;
+}
+
+function updateAffordability() {
+  document.querySelectorAll('.s-row[data-id]').forEach(row => {
+    const { id, type } = row.dataset;
+    const cost = type === 'upgrade'
+      ? UPGRADES.find(u => u.id === id)?.cost
+      : getBldgCost(BUILDINGS.find(b => b.id === id));
+    if (cost === undefined) return;
+    const can = cookies >= cost;
+    row.classList.toggle('afford', can);
+    row.classList.toggle('poor',   !can);
+  });
+}
+
+function sLabel(text) {
+  const d = document.createElement('div');
+  d.className = 's-label';
+  d.textContent = text;
+  return d;
+}
+
+function makeUpgradeRow(u) {
+  const row = document.createElement('div');
+  row.className  = 's-row ' + (cookies >= u.cost ? 'afford' : 'poor');
+  row.dataset.id   = u.id;
+  row.dataset.type = 'upgrade';
+  row.innerHTML = `
+    <div class="s-em">${u.emoji}</div>
+    <div class="s-inf">
+      <div class="s-name">${u.name}</div>
+      <div class="s-desc">${u.desc}</div>
+    </div>
+    <div class="s-rt">
+      <div class="s-cost">🍪 ${fmtShort(u.cost)}</div>
+    </div>`;
+  row.addEventListener('click', () => buyUpgrade(u.id));
+  return row;
+}
+
+function makeBldgRow(b) {
+  const cost     = getBldgCost(b);
+  const count    = buildingCounts[b.id] || 0;
+  const cpsEach  = b.baseCps * getBldgMult(b.id) * getGlobalMult();
+
+  const row = document.createElement('div');
+  row.className  = 's-row ' + (cookies >= cost ? 'afford' : 'poor');
+  row.dataset.id   = b.id;
+  row.dataset.type = 'building';
+  row.innerHTML = `
+    <div class="s-em">${b.emoji}</div>
+    <div class="s-inf">
+      <div class="s-name">${b.name}</div>
+      <div class="s-desc">${b.desc}</div>
+      ${count ? `<div class="s-owned">${count} owned · ${fmtShort(cpsEach * count)}/s total</div>` : ''}
+    </div>
+    <div class="s-rt">
+      <div class="s-cost">🍪 ${fmtShort(cost)}</div>
+      <div class="s-rate">${fmtShort(cpsEach)}/s each</div>
+    </div>`;
+  row.addEventListener('click', () => buyBuilding(b.id));
+  return row;
+}
+
+// ─── game loop ────────────────────────────────────────────────────────────────
+let lastTick = performance.now();
+let lastUnlocked = '';
+
+function tick(now) {
+  const dt = Math.min((now - lastTick) / 1000, 0.5);
+  lastTick = now;
+
+  const gained = getCPS() * dt;
+  cookies      += gained;
+  totalCookies += gained;
+
+  updateStats();
+  updateAffordability();
+
+  const unlocked = UPGRADES.filter(isUnlocked).map(u => u.id).join(',');
+  if (unlocked !== lastUnlocked) {
+    lastUnlocked = unlocked;
+    rebuildShop();
+  }
+
+  requestAnimationFrame(tick);
+}
+
+// ─── save / load / reset ──────────────────────────────────────────────────────
+const SAVE_KEY = 'cookie-clicker-save';
+
+function save() {
+  localStorage.setItem(SAVE_KEY, JSON.stringify({
+    cookies, totalCookies, buildingCounts, purchased: [...purchasedUpgrades],
+  }));
+}
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!s) return;
+    cookies           = s.cookies        || 0;
+    totalCookies      = s.totalCookies   || 0;
+    buildingCounts    = s.buildingCounts || {};
+    purchasedUpgrades = new Set(s.purchased || []);
+  } catch (_) {}
+}
+
+function reset() {
+  if (!confirm('Wipe all progress and start over?')) return;
+  localStorage.removeItem(SAVE_KEY);
+  cookies = 0; totalCookies = 0;
+  buildingCounts = {}; purchasedUpgrades = new Set();
+  lastUnlocked = '';
+  rebuildShop();
+  updateStats();
+}
+
+// ─── init ─────────────────────────────────────────────────────────────────────
+document.getElementById('cookie-btn').addEventListener('click', clickCookie);
+document.getElementById('reset-btn').addEventListener('click', reset);
+
+load();
+rebuildShop();
+updateStats();
+requestAnimationFrame(tick);
+setInterval(save, 5000);
+</script>
+</body>
+</html>

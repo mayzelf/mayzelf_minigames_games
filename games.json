@@ -15,6 +15,19 @@
       "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/labyrinth/"
     }
     ,{
+      "id": "cookie-clicker",
+      "name": "Cookie Clicker",
+      "description": "Click the cookie to bake cookies. Spend them on buildings and upgrades to automate production and multiply your output!",
+      "controls": [
+        "Click / Tap — bake a cookie",
+        "Shop — buy buildings and upgrades"
+      ],
+      "category": "idle",
+      "color": "#f6c453",
+      "emoji": "🍪",
+      "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/cookie-clicker/"
+    }
+    ,{
       "id": "cave-balloon",
       "name": "Cave Balloon",
       "description": "Pilot a blue hot air balloon through a rocky cave. Tap or press Space to float up and dodge the stalactites and stalagmites!",
