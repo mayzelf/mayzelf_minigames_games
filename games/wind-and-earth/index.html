@@ -1,0 +1,1872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wind &amp; Earth</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a1410;
+    color: #e8dccc;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    overflow: hidden;
+    user-select: none;
+    padding: 8px;
+  }
+
+  canvas {
+    display: block;
+    border-radius: 8px;
+    border: 2px solid #3a2e22;
+    background: #2a1f17;
+    max-width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+  }
+
+  #hud {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    font-size: 0.9rem;
+    color: #d4c4a8;
+    letter-spacing: 0.5px;
+  }
+
+  #hud .left { color: #86d76b; font-weight: 600; }
+  #hud .mid  { color: #d4c4a8; font-weight: 700; }
+  #hud .right { color: #6fdbe8; font-weight: 600; }
+  #hud .seed { color: #786555; font-weight: 400; font-size: 0.78rem; font-family: ui-monospace, monospace; padding-left: 8px; }
+
+  #overlay, #game-over {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 14, 10, 0.93);
+    gap: 14px;
+    z-index: 10;
+    padding: 24px;
+    text-align: center;
+  }
+
+  #overlay.hidden, #game-over.hidden, #hud.hidden { display: none; }
+
+  #overlay h1 {
+    font-size: clamp(2rem, 6vw, 3.4rem);
+    font-weight: 800;
+    background: linear-gradient(90deg, #86d76b 0%, #6fdbe8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    letter-spacing: -1px;
+  }
+
+  #overlay h2 {
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 700;
+    color: #e8dccc;
+  }
+
+  #overlay p {
+    font-size: clamp(0.85rem, 2.4vw, 1rem);
+    color: #a89580;
+    max-width: 460px;
+    line-height: 1.55;
+  }
+
+  .score-display {
+    font-size: clamp(1rem, 3vw, 1.25rem);
+    color: #e8dccc;
+    font-weight: 600;
+  }
+
+  .best-display {
+    font-size: clamp(0.8rem, 2vw, 0.95rem);
+    color: #786555;
+  }
+
+  button {
+    background: linear-gradient(90deg, #86d76b 0%, #6fdbe8 100%);
+    color: #1a1410;
+    border: none;
+    padding: 12px 36px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s, filter 0.15s;
+    letter-spacing: 0.5px;
+  }
+  button:hover  { filter: brightness(1.1); }
+  button:active { transform: scale(0.97); }
+
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 24px;
+    margin-top: 6px;
+    max-width: 460px;
+    font-size: 0.88rem;
+  }
+
+  .controls .col { text-align: left; }
+  .controls .col h3 { font-size: 0.95rem; margin-bottom: 4px; }
+  .controls .col.earth h3 { color: #86d76b; }
+  .controls .col.wind  h3 { color: #6fdbe8; }
+  .controls .col p { font-size: 0.82rem; color: #a89580; }
+  .controls kbd {
+    background: #2a1f17;
+    border: 1px solid #4a3a2a;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: monospace;
+    color: #e8dccc;
+    font-size: 0.78rem;
+  }
+
+  .death-icon { font-size: 2.5rem; }
+
+  @media (max-width: 480px) {
+    .controls { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="hud" class="hidden">
+  <span class="left">🌿 Earth</span>
+  <span class="mid"><span id="chunk-count">0</span> chunks · <span id="gem-count">0</span> 💎 · <span class="seed">seed <span id="seed-display">—</span></span></span>
+  <span class="right">Wind 🌪️</span>
+</div>
+
+<canvas id="c" width="640" height="448"></canvas>
+
+<div id="overlay">
+  <h1>Wind &amp; Earth</h1>
+  <p>The world has ended. Guide the last spirits of Earth and Wind through the ruins. Each survives where the other cannot — only together can they pass.</p>
+  <div class="controls">
+    <div class="col earth">
+      <h3>🪨 Earth (stone troll)</h3>
+      <p><kbd>A</kbd> <kbd>D</kbd> move &nbsp; <kbd>W</kbd> pillar (self) &nbsp; <kbd>S</kbd> pillar (Wind)</p>
+      <p>Walks on lava. Dies in ash. <strong>No jump.</strong> Stone pillars rise 2 tiles, work mid-air, last 5s, 8s cooldown.</p>
+    </div>
+    <div class="col wind">
+      <h3>🌪️ Wind (air elf)</h3>
+      <p><kbd>←</kbd> <kbd>→</kbd> move &nbsp; <kbd>↑</kbd> boost (self) &nbsp; <kbd>↓</kbd> boost (Earth)</p>
+      <p>Walks through ash. Dies in lava. <strong>No jump.</strong> Wind gusts shoot a character upward — instant velocity kick, 4s cooldown.</p>
+    </div>
+  </div>
+  <p>Both must reach their door. Toxic sludge, <strong>spikes</strong>, and falling kill either one. Watch for <strong>cracked ground</strong> that crumbles, and <strong>stompers</strong> that launch you sky-high. <kbd>R</kbd> restart.</p>
+  <button id="start-btn">Play</button>
+</div>
+
+<div id="game-over" class="hidden">
+  <div class="death-icon" id="death-icon">💀</div>
+  <h2 id="death-title">Game Over</h2>
+  <p id="death-reason">—</p>
+  <div class="score-display"><span id="final-chunks">0</span> chunks cleared · <span id="final-gems">0</span> 💎</div>
+  <div class="best-display">Best: <span id="best-score">0</span> chunks</div>
+  <button id="restart-btn">Try Again</button>
+  <p style="font-size:0.78rem;color:#786555;">Press <kbd style="background:#2a1f17;border:1px solid #4a3a2a;border-radius:4px;padding:1px 6px;font-family:monospace;color:#e8dccc;font-size:0.78rem;">R</kbd> to restart</p>
+</div>
+
+<script>
+// ─── constants ───────────────────────────────────────────────────────────────
+const TILE       = 32;
+const CW         = 30;             // chunk width in tiles (world width)
+const CH         = 14;
+const VIEW_TILES = 20;             // viewport width in tiles
+const WORLD_W    = CW * TILE;      // 960 px — world width
+const VIEW_W     = VIEW_TILES*TILE;// 640 px — canvas / viewport width
+const H          = CH * TILE;      // 448
+
+// Physics — floatier arcs. Apex ~0.6s, total jump ~1.2s.
+const GRAVITY     = 0.16;
+const TERMINAL    = 5.5;
+const EARTH_SPEED = 1.2;
+const EARTH_JUMP  = -5.5;  // unused — Earth has no jump; kept for reference
+const WIND_SPEED  = 1.5;
+const FRICTION    = 0.7;    // ground friction (lower = snappier stops)
+const AIR_DRAG    = 0.97;
+
+const CAM_LERP    = 0.09;   // camera smoothing toward target
+
+// Earth's pillar ability (S key) — works on ground AND in mid-air
+const PILLAR_LIFE_FRAMES     = 300;   // 5 sec at 60fps
+const PILLAR_COOLDOWN_FRAMES = 480;   // 8 sec
+const PILLAR_HEIGHT_TILES    = 2;
+const PILLAR_RISE_FRAMES     = 10;    // visual grow-in animation
+
+// Wind's boost ability — instant upward velocity (self via ↑, teammate via ↓).
+// Replaces the old jump mechanic.
+const WIND_BOOST_VELOCITY        = -6.2;   // apex ~3.75 tiles
+const WIND_BOOST_COOLDOWN_FRAMES = 240;    // 4 sec
+
+// ─── tile templates ──────────────────────────────────────────────────────────
+// .  empty             #  stone (solid for both)
+// =  one-way platform  ~  ash (Earth dies, Wind passes)
+// ^  lava (Wind dies, Earth passes)   x  toxic (both die)
+// E  Earth door        W  Wind door
+// *  gem               e  Earth spawn    w  Wind spawn
+
+// ─── seeded PRNG ─────────────────────────────────────────────────────────────
+function mulberry32(s) {
+  return function() {
+    s |= 0;
+    s = s + 0x6D2B79F5 | 0;
+    let t = Math.imul(s ^ s >>> 15, 1 | s);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function rngInt(rng, lo, hi) { return lo + Math.floor(rng() * (hi - lo + 1)); }
+function rngPick(rng, arr)   { return arr[Math.floor(rng() * arr.length)]; }
+
+// ─── procedural chunk generation ─────────────────────────────────────────────
+// Each chunk is 30 wide × 14 tall. Safe-stone shoulders cols 0-4 (spawn) and 25-29 (doors).
+// Puzzle area = cols 5-24 (20 wide). Generator picks an archetype then varies params.
+function generateChunk(rng) {
+  const g = Array.from({ length: CH }, () => Array(CW).fill('.'));
+
+  // base floor — fully solid stone
+  for (let x = 0; x < CW; x++) g[13][x] = '#';
+
+  const archetypes = ['ash', 'lava', 'mixed', 'toxic', 'spikes', 'breaking', 'safe', 'stomper'];
+  const archetype  = rngPick(rng, archetypes);
+
+  // Hazard span jitter (within safe shoulders)
+  const hStart = rngInt(rng, 6, 9);                    // 6–9
+  const hWidth = rngInt(rng, 9, 14);                   // 9–14
+  const hEnd   = Math.min(hStart + hWidth - 1, 23);
+
+  if (archetype === 'ash' || archetype === 'lava' || archetype === 'toxic' || archetype === 'mixed') {
+    const ch = archetype === 'ash'   ? '~'
+             : archetype === 'lava'  ? '^'
+             : archetype === 'toxic' ? 'x'
+             : null;
+    for (let x = hStart; x <= hEnd; x++) {
+      if (archetype === 'mixed') {
+        g[13][x] = x < (hStart + hEnd) / 2 ? '~' : '^';
+      } else {
+        g[13][x] = ch;
+      }
+    }
+    // Stair platforms across the hazard for whoever cannot walk it
+    const p1x = hStart - 1, p1w = rngInt(rng, 3, 5);
+    placePlat(g, p1x, 11, p1w);
+    const p2x = p1x + p1w + rngInt(rng, -1, 1);
+    placePlat(g, p2x, 9, rngInt(rng, 4, 6));
+    const p3x = Math.min(p2x + 5, hEnd - 2);
+    placePlat(g, p3x, 10, rngInt(rng, 3, 5));
+  } else if (archetype === 'spikes') {
+    // Floor stays solid stone; spikes rest ON TOP of the floor (row 12)
+    const sStart = rngInt(rng, 7, 10);
+    const sCount = rngInt(rng, 4, 8);
+    for (let i = 0; i < sCount; i++) g[12][sStart + i] = '!';
+    // Platforms above for jumping over the spike strip
+    placePlat(g, sStart - 2, 10, 3);
+    placePlat(g, sStart + 2, 9, rngInt(rng, 3, 5));
+    placePlat(g, sStart + sCount, 10, 3);
+  } else if (archetype === 'breaking') {
+    // A wide patch of crumbling ground that breaks under your feet
+    for (let x = hStart; x <= hEnd; x++) g[13][x] = 'b';
+    // A few platforms above as backup escape routes
+    placePlat(g, hStart + 1, 11, 3);
+    placePlat(g, hStart + 6, 10, 3);
+    placePlat(g, hStart + 10, 11, 3);
+  } else if (archetype === 'stomper') {
+    // A flat lane with a stomper launchpad mid-floor + spikes hanging from a ceiling
+    const stx = rngInt(rng, 11, 17);
+    g[13][stx] = 'T';
+    // ceiling spikes to dodge into via stomper
+    const cx = rngInt(rng, 8, 18);
+    g[5][cx] = '!';
+    if (rng() < 0.5) g[5][cx + 1] = '!';
+    // small platforms to land on after stomper launch
+    placePlat(g, stx - 4, 8, 3);
+    placePlat(g, stx + 2, 7, 3);
+  } else {
+    // 'safe' — open layout with a few decorative platforms
+    placePlat(g, rngInt(rng, 7, 11), 10, rngInt(rng, 4, 7));
+    if (rng() < 0.7) placePlat(g, rngInt(rng, 14, 19), 9, rngInt(rng, 3, 5));
+  }
+
+  // Optional sprinkles: stomper in the puzzle, breaking patches in safe areas
+  if (archetype !== 'stomper' && rng() < 0.25) {
+    const sx = rngInt(rng, 5, 24);
+    if (g[13][sx] === '#') g[13][sx] = 'T';
+  }
+  if (archetype !== 'breaking' && rng() < 0.3) {
+    const bx = rngInt(rng, 5, 22);
+    const bw = rngInt(rng, 1, 3);
+    for (let i = 0; i < bw; i++) if (g[13][bx + i] === '#') g[13][bx + i] = 'b';
+  }
+
+  // Gems (1–3) placed on empty cells above the puzzle area
+  const numGems = rngInt(rng, 1, 3);
+  for (let i = 0; i < numGems; i++) {
+    for (let tries = 0; tries < 12; tries++) {
+      const gx = rngInt(rng, 5, 24);
+      const gy = rngInt(rng, 5, 11);
+      if (g[gy][gx] === '.') { g[gy][gx] = '*'; break; }
+    }
+  }
+
+  // Spawn / doors — always at fixed safe-shoulder positions
+  g[12][1]  = 'e';
+  g[12][4]  = 'w';
+  g[12][28] = 'E';
+  g[12][29] = 'W';
+
+  return g.map(row => row.join(''));
+}
+
+function placePlat(g, x, y, w) {
+  if (y < 0 || y >= CH) return;
+  for (let i = 0; i < w; i++) {
+    const cx = x + i;
+    if (cx < 5 || cx > 24) continue;   // keep platforms inside the puzzle area
+    if (g[y][cx] === '.') g[y][cx] = '=';
+  }
+}
+
+const CHUNKS_LEGACY = [
+  // A — intro: gentle walk with two gem ledges
+  [
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "........**..........**........",
+    ".......======......======.....",
+    "..............................",
+    "..............................",
+    ".e..w.......................EW",
+    "##############################",
+  ].map(s => s.slice(0, 30)),
+  // B — ash route: Earth climbs ascending platforms; Wind walks across ash
+  [
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    ".............**...............",
+    "............======............",
+    ".................=====........",
+    "........====..................",
+    ".e..w.......................EW",
+    "########~~~~~~~~~~~~##########",
+  ].map(s => s.slice(0, 30)),
+  // C — lava route: Wind climbs platforms; Earth strolls across lava
+  [
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    ".............**...............",
+    "............======............",
+    ".................=====........",
+    "........====..................",
+    ".e..w.......................EW",
+    "########^^^^^^^^^^^^##########",
+  ].map(s => s.slice(0, 30)),
+  // D — mixed: ash on the left, lava on the right, each character uses different platforms
+  [
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    ".............**...............",
+    "..............................",
+    "....======................==..",
+    "..........====....====........",
+    ".e..w.......................EW",
+    "#####~~~~~~####^^^^^^^#########",
+  ].map(s => s.slice(0, 30)),
+  // E — toxic chasm: both must use platforms across the open toxic span
+  [
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    ".............**...............",
+    ".......===========............",
+    "..............................",
+    ".....==.......................",
+    ".e..w.......................EW",
+    "#####xxxxxxxxxxxx#############",
+  ].map(s => s.slice(0, 30)),
+];
+
+// ─── tile property helpers ───────────────────────────────────────────────────
+// Tile vocabulary:
+//   .  empty       #  stone          =  one-way platform
+//   ~  ash         ^  lava           x  toxic
+//   !  spikes      T  stomper        b  breaking ground
+//   E  Earth door  W  Wind door      *  gem
+//   e  Earth spawn w  Wind spawn
+function isSolidFor(ch, isEarth) {
+  if (ch === '#') return true;
+  if (ch === 'T') return true;       // stomper is solid (bounces player on landing)
+  if (ch === 'b') return true;       // breaking ground is solid until it has crumbled
+  if (ch === '~') return !isEarth;   // ash is solid only for Wind
+  if (ch === '^') return isEarth;    // lava is solid only for Earth
+  // toxic 'x' and spikes '!' are NOT solid — character falls in and dies
+  return false;
+}
+
+function isOneWay(ch) { return ch === '='; }
+function isStomper(ch) { return ch === 'T'; }
+
+function isDeadlyFor(ch, isEarth) {
+  if (ch === 'x') return true;
+  if (ch === '!') return true;       // spikes kill both
+  if (ch === '~') return isEarth;
+  if (ch === '^') return !isEarth;
+  return false;
+}
+
+const STOMPER_VELOCITY = -8.5;        // ~5.5-tile launch (vs Wind boost -6.2)
+const BREAK_FRAMES     = 70;          // ~1.17s of standing before tile crumbles
+
+// ─── state ───────────────────────────────────────────────────────────────────
+const canvas    = document.getElementById('c');
+const ctx       = canvas.getContext('2d');
+const overlay   = document.getElementById('overlay');
+const gameOver  = document.getElementById('game-over');
+const hud       = document.getElementById('hud');
+const startBtn  = document.getElementById('start-btn');
+const restartBtn= document.getElementById('restart-btn');
+
+const chunkCountEl = document.getElementById('chunk-count');
+const gemCountEl   = document.getElementById('gem-count');
+const seedDisplay  = document.getElementById('seed-display');
+const finalChunks  = document.getElementById('final-chunks');
+const finalGems    = document.getElementById('final-gems');
+const deathTitle   = document.getElementById('death-title');
+const deathReason  = document.getElementById('death-reason');
+const deathIcon    = document.getElementById('death-icon');
+const bestScoreEl  = document.getElementById('best-score');
+
+let mode = 'menu';   // 'menu' | 'playing' | 'over'
+let map  = [];       // 2d array of chars
+let earth, wind;
+let earthDoor = null, windDoor = null;
+let gems = [];
+let chunksCleared = 0;
+let gemsCollected = 0;
+let flash = 0;       // chunk-clear flash timer
+let prevChunkIdx = -1;
+let particles = []; // ambient ash motes
+let camX = 0;       // camera offset (world-space pixels)
+let pillar = null;          // { x, y, w, h, life, startLife }
+let pillarCooldown = 0;     // shared Earth ability cooldown (W self / S teammate)
+let windBoostCooldown = 0;  // shared Wind  ability cooldown (↑ self / ↓ teammate)
+let breakStates = {};       // { "col,row": { timer, broken } } — per-tile breaking ground state
+let seed = (Math.random() * 0x7fffffff) | 0;
+let rng = mulberry32(seed);
+let best = parseInt(localStorage.getItem('wind-earth-best') || '0', 10);
+
+const keys = {};
+
+// ─── chunk loading ───────────────────────────────────────────────────────────
+function loadChunk() {
+  // reset camera, abilities, and per-tile state for the new chunk
+  camX = 0;
+  pillar = null;
+  pillarCooldown = 0;
+  windBoostCooldown = 0;
+  breakStates = {};
+
+  // The very first chunk after a restart is forced to a benign "safe" archetype
+  // so players aren't slammed by a hazard the moment they spawn.
+  const tpl = (chunksCleared === 0) ? generateSafeIntroChunk() : generateChunk(rng);
+  map = tpl.map(row => row.split(''));
+  gems = [];
+  earthDoor = null;
+  windDoor = null;
+
+  let eSpawn = null, wSpawn = null;
+  for (let y = 0; y < CH; y++) {
+    for (let x = 0; x < CW; x++) {
+      const ch = map[y][x];
+      if (ch === 'e')      { eSpawn = { x, y }; map[y][x] = '.'; }
+      else if (ch === 'w') { wSpawn = { x, y }; map[y][x] = '.'; }
+      else if (ch === '*') { gems.push({ x: x * TILE + TILE/2, y: y * TILE + TILE/2, taken: false }); map[y][x] = '.'; }
+      else if (ch === 'E') { earthDoor = { x, y }; }
+      else if (ch === 'W') { windDoor  = { x, y }; }
+    }
+  }
+
+  earth = mkPlayer(eSpawn.x, eSpawn.y, true);
+  wind  = mkPlayer(wSpawn.x, wSpawn.y, false);
+}
+
+function generateSafeIntroChunk() {
+  // Hand-tuned safe intro — all floor stone, two platforms with gems, no hazards or traps.
+  return [
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "..............................",
+    "........**..........**........",
+    ".......======......======.....",
+    "..............................",
+    "..............................",
+    ".e..w.......................EW",
+    "##############################",
+  ];
+}
+
+function mkPlayer(tileX, tileY, isEarth) {
+  return {
+    isEarth,
+    w: TILE - 8,
+    h: TILE * 2 - 4,
+    x: tileX * TILE + 4,
+    // place so player's bottom sits at the BOTTOM of the spawn tile (just above floor)
+    y: (tileY + 1) * TILE - (TILE * 2 - 4),
+    vx: 0,
+    vy: 0,
+    onGround: false,
+    selfHeld: false,
+    helpHeld: false,
+    dead: false,
+    color: isEarth ? '#86d76b' : '#6fdbe8',
+    facing: 1,
+    animT: 0,
+  };
+}
+
+// ─── physics ─────────────────────────────────────────────────────────────────
+function tilesOverlapping(x, y, w, h) {
+  const x0 = Math.floor(x / TILE);
+  const y0 = Math.floor(y / TILE);
+  const x1 = Math.floor((x + w - 1) / TILE);
+  const y1 = Math.floor((y + h - 1) / TILE);
+  const out = [];
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      out.push({ tx, ty, ch: getTile(tx, ty) });
+    }
+  }
+  return out;
+}
+
+function getTile(tx, ty) {
+  if (ty < 0 || ty >= CH) return '.';
+  if (tx < 0 || tx >= CW) return '#';   // walls left/right
+  const ch = map[ty][tx];
+  // breaking ground that has fully crumbled behaves like empty space
+  if (ch === 'b' && isTileBroken(tx, ty)) return '.';
+  return ch;
+}
+
+function isTileBroken(tx, ty) {
+  const s = breakStates[tx + ',' + ty];
+  return !!(s && s.broken);
+}
+
+function tickBreakingGround(p) {
+  // detect tiles directly under the player's feet that are 'b' and tick their break timer
+  if (p.dead || !p.onGround) return;
+  const feetY = p.y + p.h;
+  const tileRow = Math.floor((feetY + 1) / TILE);
+  const x0 = Math.floor(p.x / TILE);
+  const x1 = Math.floor((p.x + p.w - 1) / TILE);
+  for (let tx = x0; tx <= x1; tx++) {
+    if (tileRow < 0 || tileRow >= CH || tx < 0 || tx >= CW) continue;
+    if (map[tileRow][tx] !== 'b') continue;
+    const key = tx + ',' + tileRow;
+    if (!breakStates[key]) breakStates[key] = { timer: 0, broken: false };
+    if (breakStates[key].broken) continue;
+    breakStates[key].timer++;
+    if (breakStates[key].timer >= BREAK_FRAMES) breakStates[key].broken = true;
+  }
+}
+
+function rectsOverlap(p, r) {
+  return p.x < r.x + r.w && p.x + p.w > r.x &&
+         p.y < r.y + r.h && p.y + p.h > r.y;
+}
+
+function movePlayer(p, dx, dy) {
+  // X axis
+  p.x += dx;
+  let tiles = tilesOverlapping(p.x, p.y, p.w, p.h);
+  for (const t of tiles) {
+    if (!isSolidFor(t.ch, p.isEarth)) continue;
+    const tileLeft = t.tx * TILE, tileRight = tileLeft + TILE;
+    if (dx > 0)      p.x = tileLeft  - p.w;
+    else if (dx < 0) p.x = tileRight;
+    p.vx = 0;
+  }
+  // X-axis pillar collision (solid for both characters)
+  if (pillar && rectsOverlap(p, pillar)) {
+    if (dx > 0)      p.x = pillar.x - p.w;
+    else if (dx < 0) p.x = pillar.x + pillar.w;
+    p.vx = 0;
+  }
+
+  // Y axis
+  const prevBottom = p.y + p.h;
+  p.y += dy;
+  p.onGround = false;
+  tiles = tilesOverlapping(p.x, p.y, p.w, p.h);
+  for (const t of tiles) {
+    const tileTop = t.ty * TILE, tileBottom = tileTop + TILE;
+    let solid = isSolidFor(t.ch, p.isEarth);
+    // one-way platform: only solid when moving down and we were above the tile top
+    if (!solid && isOneWay(t.ch) && dy > 0 && prevBottom <= tileTop + 1) {
+      solid = true;
+    }
+    if (!solid) continue;
+    if (dy > 0) {
+      p.y = tileTop - p.h;
+      if (isStomper(t.ch)) {
+        // Stomper launchpad — bounces player upward instead of stopping
+        p.vy = STOMPER_VELOCITY;
+        p.onGround = false;
+        emitStomperBurst(t.tx * TILE + TILE / 2, tileTop);
+      } else {
+        p.vy = 0;
+        p.onGround = true;
+      }
+    } else if (dy < 0) { p.y = tileBottom;    p.vy = 0; }
+  }
+  // Y-axis pillar collision
+  if (pillar && rectsOverlap(p, pillar)) {
+    if (dy > 0)      { p.y = pillar.y - p.h;        p.vy = 0; p.onGround = true; }
+    else if (dy < 0) { p.y = pillar.y + pillar.h;   p.vy = 0; }
+  }
+
+  // Sticky ground probe: handles sub-pixel drift just above a floor tile.
+  // Skip when the player is moving upward (e.g. just got stomper-bounced or boosted)
+  // so the probe doesn't immediately re-ground them.
+  if (!p.onGround && p.vy >= 0) {
+    const probe = tilesOverlapping(p.x, p.y + 1, p.w, p.h);
+    const feetY = p.y + p.h;
+    for (const t of probe) {
+      const tileTop = t.ty * TILE;
+      if (tileTop < feetY - 1) continue;   // tile is above the feet — ignore
+      let solid = isSolidFor(t.ch, p.isEarth);
+      if (!solid && isOneWay(t.ch) && feetY <= tileTop + 1) solid = true;
+      if (solid) { p.onGround = true; break; }
+    }
+    // probe against pillar top
+    if (!p.onGround && pillar) {
+      const feetY2 = p.y + p.h;
+      if (Math.abs(feetY2 - pillar.y) < 1.5 &&
+          p.x < pillar.x + pillar.w && p.x + p.w > pillar.x) {
+        p.onGround = true;
+      }
+    }
+  }
+}
+
+function checkHazards(p) {
+  // check all overlapped tiles for deadly contact
+  const tiles = tilesOverlapping(p.x, p.y, p.w, p.h);
+  for (const t of tiles) {
+    if (isDeadlyFor(t.ch, p.isEarth)) {
+      return t.ch;   // return the lethal tile char
+    }
+  }
+  // off the bottom = death too
+  if (p.y > H + TILE) return 'fall';
+  return null;
+}
+
+// ─── input & update ──────────────────────────────────────────────────────────
+function readInput(p) {
+  if (p.dead) { p.vx = 0; return; }
+  const speed = p.isEarth ? EARTH_SPEED : WIND_SPEED;
+  let left, right, up;
+  if (p.isEarth) {
+    left  = keys['KeyA'];
+    right = keys['KeyD'];
+    // Earth has no jump — vertical movement is via the pillar ability only
+  } else {
+    left  = keys['ArrowLeft'];
+    right = keys['ArrowRight'];
+    up    = keys['ArrowUp'];
+  }
+
+  let target = 0;
+  if (left)  target -= speed;
+  if (right) target += speed;
+
+  if (target !== 0) {
+    p.vx = target;
+    p.facing = target > 0 ? 1 : -1;
+  } else {
+    p.vx *= p.onGround ? FRICTION : AIR_DRAG;
+    if (Math.abs(p.vx) < 0.1) p.vx = 0;
+  }
+
+  // ── Ability inputs ──────────────────────────────────────────────────────
+  // Earth (stone element):  W → self-pillar, S → teammate-pillar (lifts Wind)
+  // Wind  (air element):    ↑ → self-boost,  ↓ → teammate-boost (lifts Earth)
+  // Each character has its own shared cooldown across both ability slots.
+  if (p.isEarth) {
+    const selfKey = keys['KeyW'];
+    const helpKey = keys['KeyS'];
+    if (!pillar && pillarCooldown === 0) {
+      if (selfKey && !p.selfHeld)      placePillar(earth);
+      else if (helpKey && !p.helpHeld) placePillar(wind);
+    }
+    p.selfHeld = !!selfKey;
+    p.helpHeld = !!helpKey;
+  } else {
+    const selfKey = keys['ArrowUp'];
+    const helpKey = keys['ArrowDown'];
+    if (windBoostCooldown === 0) {
+      if (selfKey && !p.selfHeld) {
+        boostUp(wind);
+        windBoostCooldown = WIND_BOOST_COOLDOWN_FRAMES;
+      } else if (helpKey && !p.helpHeld) {
+        boostUp(earth);
+        windBoostCooldown = WIND_BOOST_COOLDOWN_FRAMES;
+      }
+    }
+    p.selfHeld = !!selfKey;
+    p.helpHeld = !!helpKey;
+  }
+}
+
+function emitStomperBurst(cx, cy) {
+  for (let i = 0; i < 12; i++) {
+    particles.push({
+      x: cx + (Math.random() - 0.5) * 30,
+      y: cy + 2,
+      vy: -0.6 - Math.random() * 1.6,
+      vx: (Math.random() - 0.5) * 2.5,
+      r: 1.2 + Math.random() * 1.8,
+      a: 0.65 + Math.random() * 0.3,
+      gust: true,
+      stomp: true,
+      life: 25 + Math.random() * 20,
+    });
+  }
+}
+
+function boostUp(target) {
+  if (!target || target.dead) return;
+  target.vy = WIND_BOOST_VELOCITY;
+  target.onGround = false;
+  // visual gust — quick puff of cyan particles beneath the target
+  for (let i = 0; i < 10; i++) {
+    particles.push({
+      x: target.x + target.w / 2 + (Math.random() - 0.5) * 24,
+      y: target.y + target.h - 2,
+      vy: -0.4 - Math.random() * 0.9,
+      vx: (Math.random() - 0.5) * 1.8,
+      r: 1.0 + Math.random() * 1.4,
+      a: 0.55 + Math.random() * 0.35,
+      gust: true,    // marker so render uses cyan color
+      life: 30 + Math.random() * 20,
+    });
+  }
+}
+
+function placePillar(target) {
+  // pillar appears under `target` (Earth or Wind) and rises 2 tiles tall,
+  // lifting that character onto its top. Caller decides whether self or teammate.
+  if (!target || target.dead) return;
+  const feetY = target.y + target.h;
+  const tileCol = Math.floor((target.x + target.w / 2) / TILE);
+  const px = tileCol * TILE;
+  const py = feetY - PILLAR_HEIGHT_TILES * TILE;
+  pillar = {
+    x: px,
+    y: py,
+    w: TILE,
+    h: PILLAR_HEIGHT_TILES * TILE,
+    life: PILLAR_LIFE_FRAMES,
+    startLife: PILLAR_LIFE_FRAMES,
+  };
+  // lift the target onto the top of the pillar
+  target.y = pillar.y - target.h;
+  target.vy = 0;
+  target.onGround = true;
+  pillarCooldown = PILLAR_COOLDOWN_FRAMES;
+}
+
+function physicsStep(p) {
+  if (p.dead) return;
+  p.vy += GRAVITY;
+  if (p.vy > TERMINAL) p.vy = TERMINAL;
+  movePlayer(p, p.vx, 0);
+  movePlayer(p, 0, p.vy);
+  p.animT += Math.abs(p.vx) * 0.08;
+
+  const deadly = checkHazards(p);
+  if (deadly) {
+    p.dead = true;
+    p.deathCause = deadly;
+  }
+}
+
+function collectGems(p) {
+  for (const g of gems) {
+    if (g.taken) continue;
+    const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+    if (Math.abs(cx - g.x) < 18 && Math.abs(cy - g.y) < 24) {
+      g.taken = true;
+      gemsCollected++;
+    }
+  }
+}
+
+function onDoor(p, door) {
+  if (!door) return false;
+  // player must be standing on door tile (centered over it, on ground)
+  if (!p.onGround) return false;
+  const cx = p.x + p.w / 2;
+  const doorCx = door.x * TILE + TILE / 2;
+  return Math.abs(cx - doorCx) < TILE * 0.65;
+}
+
+// ─── game loop ───────────────────────────────────────────────────────────────
+function update() {
+  if (mode !== 'playing') return;
+
+  readInput(earth);
+  readInput(wind);
+  physicsStep(earth);
+  physicsStep(wind);
+  collectGems(earth);
+  collectGems(wind);
+  tickBreakingGround(earth);
+  tickBreakingGround(wind);
+
+  // death check
+  if (earth.dead || wind.dead) {
+    endGame();
+    return;
+  }
+
+  // door check
+  if (onDoor(earth, earthDoor) && onDoor(wind, windDoor)) {
+    chunksCleared++;
+    flash = 18;
+    updateHUD();
+    loadChunk();
+  }
+
+  // particles (world-space — spawn within current view)
+  if (Math.random() < 0.4) {
+    particles.push({
+      x: camX + Math.random() * VIEW_W,
+      y: -4,
+      vy: 0.4 + Math.random() * 0.6,
+      vx: -0.15 + Math.random() * 0.3,
+      r: 0.6 + Math.random() * 1.4,
+      a: 0.25 + Math.random() * 0.35,
+    });
+  }
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    if (p.gust) {
+      p.life--;
+      p.a *= 0.95;
+      if (p.life <= 0 || p.a < 0.05) { particles.splice(i, 1); continue; }
+    }
+    if (p.y > H || p.y < -40 || p.x < camX - 80 || p.x > camX + VIEW_W + 80) particles.splice(i, 1);
+  }
+
+  // camera follows midpoint between Earth and Wind
+  const midX = (earth.x + earth.w / 2 + wind.x + wind.w / 2) / 2;
+  let camTarget = midX - VIEW_W / 2;
+  camTarget = Math.max(0, Math.min(camTarget, WORLD_W - VIEW_W));
+  camX += (camTarget - camX) * CAM_LERP;
+
+  // pillar lifetime + cooldown
+  if (pillar) {
+    pillar.life--;
+    if (pillar.life <= 0) pillar = null;
+  }
+  if (pillarCooldown > 0) pillarCooldown--;
+  if (windBoostCooldown > 0) windBoostCooldown--;
+
+  if (flash > 0) flash--;
+}
+
+function endGame() {
+  mode = 'over';
+  const dead = earth.dead ? earth : wind;
+  const who = earth.dead ? 'Earth' : 'Wind';
+  const cause = dead.deathCause;
+  let msg = `${who} fell into the void.`;
+  if (cause === '~') msg = `${who} sank into the burning ash.`;
+  if (cause === '^') msg = `${who} was scorched by molten rock.`;
+  if (cause === 'x') msg = `${who} was dissolved by toxic sludge.`;
+  if (cause === 'fall') msg = `${who} fell off the edge of the world.`;
+
+  finalChunks.textContent = chunksCleared;
+  finalGems.textContent   = gemsCollected;
+  deathReason.textContent = msg;
+  deathTitle.textContent  = earth.dead && wind.dead ? 'Both Perished' : `${who} Has Fallen`;
+  deathIcon.textContent   = earth.dead ? '🌿💀' : '🌪️💀';
+
+  if (chunksCleared > best) {
+    best = chunksCleared;
+    localStorage.setItem('wind-earth-best', String(best));
+  }
+  bestScoreEl.textContent = best;
+  gameOver.classList.remove('hidden');
+  hud.classList.add('hidden');
+}
+
+function updateHUD() {
+  chunkCountEl.textContent = chunksCleared;
+  gemCountEl.textContent   = gemsCollected;
+}
+
+// ─── rendering ───────────────────────────────────────────────────────────────
+function render() {
+  // backdrop with vertical gradient (ash sky)
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#3a2418');
+  grad.addColorStop(0.6, '#2a1a12');
+  grad.addColorStop(1, '#1f140e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, VIEW_W, H);
+
+  // distant ruined silhouettes — parallax 0.3x of camera, repeating across world
+  ctx.save();
+  ctx.translate(-camX * 0.3, 0);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  const silCount = Math.ceil(WORLD_W / 95) + 2;
+  for (let i = 0; i < silCount; i++) {
+    const bx = i * 95 + 20;
+    const bh = 60 + (i % 3) * 24;
+    ctx.fillRect(bx, H - bh - TILE * 2 + 4, 70, bh);
+    ctx.beginPath();
+    ctx.moveTo(bx, H - bh - TILE * 2 + 4);
+    ctx.lineTo(bx + 20, H - bh - TILE * 2 - 8);
+    ctx.lineTo(bx + 40, H - bh - TILE * 2);
+    ctx.lineTo(bx + 70, H - bh - TILE * 2 + 4);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // ── world layer (camera-transformed) ────────────────────────────────────
+  ctx.save();
+  ctx.translate(-Math.round(camX), 0);
+
+  // ambient motes + gust / stomper bursts
+  for (const p of particles) {
+    const color = p.stomp ? `rgba(244,200,120,${p.a})`
+                : p.gust  ? `rgba(168,238,244,${p.a})`
+                :           `rgba(220,180,140,${p.a})`;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // tiles (only when a chunk is loaded) — cull to view for performance
+  if (map.length) {
+    const xStart = Math.max(0, Math.floor(camX / TILE) - 1);
+    const xEnd   = Math.min(CW, Math.ceil((camX + VIEW_W) / TILE) + 1);
+    for (let y = 0; y < CH; y++) {
+      for (let x = xStart; x < xEnd; x++) {
+        const ch = map[y][x];
+        const px = x * TILE, py = y * TILE;
+        drawTile(ch, px, py, x, y);
+      }
+    }
+  }
+
+  // doors
+  if (earthDoor) drawDoor(earthDoor, true);
+  if (windDoor)  drawDoor(windDoor, false);
+
+  // gems
+  for (const g of gems) {
+    if (g.taken) continue;
+    drawGem(g.x, g.y);
+  }
+
+  // pillar (drawn before players so the troll appears standing on top)
+  if (pillar) drawPillar(pillar);
+
+  // players
+  if (earth) drawPlayer(earth);
+  if (wind)  drawPlayer(wind);
+
+  // cooldown indicators (small ring above each character's head)
+  if (earth && pillarCooldown > 0     && !earth.dead) drawCooldownRing(earth, pillarCooldown,     PILLAR_COOLDOWN_FRAMES,     '#86d76b', '#3a5a24', '#bff292');
+  if (wind  && windBoostCooldown > 0  && !wind.dead)  drawCooldownRing(wind,  windBoostCooldown,  WIND_BOOST_COOLDOWN_FRAMES, '#6fdbe8', '#1a4a52', '#a8eef4');
+
+  ctx.restore();
+  // ────────────────────────────────────────────────────────────────────────
+
+  // off-screen player arrows (helps when one falls behind)
+  if (earth && wind && mode === 'playing') {
+    drawOffscreenArrow(earth, true);
+    drawOffscreenArrow(wind, false);
+  }
+
+  // flash on chunk clear
+  if (flash > 0) {
+    ctx.fillStyle = `rgba(255,240,200,${flash / 18 * 0.35})`;
+    ctx.fillRect(0, 0, VIEW_W, H);
+  }
+}
+
+function drawOffscreenArrow(p, isEarth) {
+  const px = p.x + p.w / 2 - camX;
+  if (px >= 0 && px <= VIEW_W) return;
+  const arrowY = p.y + p.h / 2;
+  const arrowX = px < 0 ? 12 : VIEW_W - 12;
+  const dir = px < 0 ? -1 : 1;
+  const color = isEarth ? '#86d76b' : '#6fdbe8';
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(arrowX + 6 * dir, arrowY);
+  ctx.lineTo(arrowX - 4 * dir, arrowY - 7);
+  ctx.lineTo(arrowX - 4 * dir, arrowY + 7);
+  ctx.closePath();
+  ctx.fill();
+  // small icon
+  ctx.fillStyle = '#1a1410';
+  ctx.fillRect(arrowX - 2 * dir, arrowY - 2, 3, 3);
+}
+
+function drawTile(ch, px, py, tx, ty) {
+  if (ch === '.' || ch === 'E' || ch === 'W') return;
+  // fully broken floor tiles are invisible (gone)
+  if (ch === 'b' && isTileBroken(tx, ty)) return;
+
+  if (ch === '#') {
+    // weathered stone block
+    ctx.fillStyle = '#5a4a3a';
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = '#6e5a47';
+    ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 8);
+    ctx.fillStyle = '#3e3024';
+    ctx.fillRect(px, py + TILE - 4, TILE, 4);
+    // cracks
+    ctx.strokeStyle = '#3a2c20';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px + 6, py + 8);
+    ctx.lineTo(px + 12, py + 18);
+    ctx.moveTo(px + 22, py + 6);
+    ctx.lineTo(px + 26, py + 14);
+    ctx.stroke();
+  }
+  else if (ch === '=') {
+    // thin one-way platform — wooden/bone-like
+    ctx.fillStyle = '#7a5e44';
+    ctx.fillRect(px, py + 2, TILE, 7);
+    ctx.fillStyle = '#a07e5e';
+    ctx.fillRect(px, py + 2, TILE, 2);
+    ctx.fillStyle = '#4a3828';
+    ctx.fillRect(px, py + 8, TILE, 1);
+  }
+  else if (ch === '~') {
+    // ash pit (deadly to Earth) — pale tan with swirl
+    ctx.fillStyle = '#d4b88a';
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = '#b89870';
+    for (let i = 0; i < 3; i++) {
+      const ox = (px + 4 + i * 9 + (ty * 7) % 13);
+      const oy = py + 6 + ((tx + i) % 4) * 6;
+      ctx.beginPath();
+      ctx.arc(ox, oy, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#e8d4a8';
+    ctx.fillRect(px, py, TILE, 2);
+  }
+  else if (ch === '^') {
+    // lava (deadly to Wind)
+    const t = performance.now() / 600;
+    ctx.fillStyle = '#7a2812';
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = '#d4541a';
+    ctx.fillRect(px, py + 4, TILE, TILE - 4);
+    ctx.fillStyle = '#f4a020';
+    for (let i = 0; i < 3; i++) {
+      const wx = px + i * 11 + (Math.sin(t + tx * 0.6 + i) * 3) + 4;
+      const wy = py + 6 + Math.cos(t + i + tx * 0.3) * 2;
+      ctx.beginPath();
+      ctx.arc(wx, wy, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#fff0a0';
+    ctx.fillRect(px, py + 2, TILE, 2);
+  }
+  else if (ch === 'x') {
+    // toxic sludge — kills both
+    const t = performance.now() / 500;
+    ctx.fillStyle = '#1a3a18';
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = '#3aaa44';
+    ctx.fillRect(px, py + 4, TILE, TILE - 4);
+    ctx.fillStyle = '#7ce864';
+    for (let i = 0; i < 3; i++) {
+      const bx = px + 5 + i * 10;
+      const by = py + 8 + Math.sin(t + i + tx * 0.5) * 3;
+      ctx.beginPath();
+      ctx.arc(bx, by, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#c4ffa8';
+    ctx.fillRect(px, py + 2, TILE, 2);
+  }
+  else if (ch === '!') {
+    // spikes — gleaming silver triangles pointing up
+    const baseY = py + TILE - 2;
+    const tipY  = py + 4;
+    ctx.fillStyle = '#3a3a44';
+    ctx.fillRect(px, py + TILE - 4, TILE, 4);   // dark socket base
+    for (let i = 0; i < 4; i++) {
+      const sx = px + 4 + i * 7;
+      // spike body
+      ctx.fillStyle = '#a4adb8';
+      ctx.beginPath();
+      ctx.moveTo(sx, baseY);
+      ctx.lineTo(sx + 3, tipY);
+      ctx.lineTo(sx + 6, baseY);
+      ctx.closePath();
+      ctx.fill();
+      // bright edge highlight
+      ctx.fillStyle = '#d8e0e8';
+      ctx.beginPath();
+      ctx.moveTo(sx + 1, baseY - 1);
+      ctx.lineTo(sx + 3, tipY + 1);
+      ctx.lineTo(sx + 3, baseY - 1);
+      ctx.closePath();
+      ctx.fill();
+      // dark shadow side
+      ctx.fillStyle = '#4a525c';
+      ctx.beginPath();
+      ctx.moveTo(sx + 3, tipY + 1);
+      ctx.lineTo(sx + 5, baseY - 1);
+      ctx.lineTo(sx + 3, baseY - 1);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // dried blood smear at base
+    ctx.fillStyle = '#5a1812';
+    ctx.fillRect(px + 5, py + TILE - 4, 4, 2);
+    ctx.fillRect(px + 16, py + TILE - 4, 5, 1);
+  }
+  else if (ch === 'T') {
+    // stomper / launchpad — heavy metal pad with red glowing core and spring
+    // base / floor
+    ctx.fillStyle = '#3a2c20';
+    ctx.fillRect(px, py + TILE - 6, TILE, 6);
+    // pad body
+    ctx.fillStyle = '#7a3a22';
+    ctx.fillRect(px + 2, py + 6, TILE - 4, TILE - 12);
+    // bright launcher top
+    ctx.fillStyle = '#e8a020';
+    ctx.fillRect(px + 4, py + 4, TILE - 8, 4);
+    ctx.fillStyle = '#fff0a0';
+    ctx.fillRect(px + 4, py + 4, TILE - 8, 1);
+    // spring coil hint
+    const t = performance.now() / 240;
+    const pulse = 0.5 + Math.sin(t) * 0.5;
+    ctx.fillStyle = `rgba(255,${120 + 80 * pulse},40,${0.7})`;
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(px + 6 + i, py + 12 + i * 5, TILE - 12 - i * 2, 2);
+    }
+    // bolts in corners
+    ctx.fillStyle = '#1a0e08';
+    ctx.fillRect(px + 2, py + TILE - 5, 2, 2);
+    ctx.fillRect(px + TILE - 4, py + TILE - 5, 2, 2);
+    // arrows on side
+    ctx.fillStyle = '#ffe060';
+    ctx.beginPath();
+    ctx.moveTo(px + TILE / 2, py + 10);
+    ctx.lineTo(px + TILE / 2 - 4, py + 16);
+    ctx.lineTo(px + TILE / 2 + 4, py + 16);
+    ctx.closePath();
+    ctx.fill();
+  }
+  else if (ch === 'b') {
+    // breaking ground — cracked stone that crumbles when stood on
+    const key = tx + ',' + ty;
+    const st  = breakStates[key];
+    const progress = st ? Math.min(1, st.timer / BREAK_FRAMES) : 0;
+    const shake   = progress > 0.2 ? (Math.random() - 0.5) * (progress * 2.5) : 0;
+
+    // base stone (a bit warmer than #)
+    ctx.fillStyle  = `rgb(${110 - progress*30}, ${82 - progress*22}, ${56 - progress*18})`;
+    ctx.fillRect(px + shake, py, TILE, TILE);
+    // inset face
+    ctx.fillStyle = `rgb(${130 - progress*40}, ${100 - progress*28}, ${70 - progress*18})`;
+    ctx.fillRect(px + 2 + shake, py + 2, TILE - 4, TILE - 8);
+    // bottom shadow
+    ctx.fillStyle = '#3a2c20';
+    ctx.fillRect(px + shake, py + TILE - 4, TILE, 4);
+    // baseline cracks (always visible to telegraph the trap)
+    ctx.strokeStyle = '#2a1a0e';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px + 4 + shake, py + 4);
+    ctx.lineTo(px + 12 + shake, py + 14);
+    ctx.lineTo(px + 8 + shake, py + 22);
+    ctx.moveTo(px + 20 + shake, py + 5);
+    ctx.lineTo(px + 18 + shake, py + 18);
+    ctx.lineTo(px + 26 + shake, py + 26);
+    ctx.stroke();
+    // worsening cracks as it breaks
+    if (progress > 0.3) {
+      ctx.strokeStyle = '#1a0e06';
+      ctx.lineWidth = 1 + progress;
+      ctx.beginPath();
+      ctx.moveTo(px + 16 + shake, py + 1);
+      ctx.lineTo(px + 14 + shake, py + 12);
+      ctx.lineTo(px + 22 + shake, py + 20);
+      ctx.lineTo(px + 18 + shake, py + 30);
+      ctx.stroke();
+    }
+    // chip particles when close to breaking
+    if (progress > 0.6) {
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = '#3a2814';
+        ctx.fillRect(px + i * 9 + 4, py + TILE + Math.random() * 2, 2, 2);
+      }
+    }
+  }
+}
+
+function drawDoor(d, isEarth) {
+  const px = d.x * TILE;
+  const py = d.y * TILE;
+  const cx = px + TILE / 2;
+  const baseY = py + TILE;            // sit on top of floor tile
+  const t = performance.now() / 700;
+
+  const C = isEarth
+    ? { frame: '#1f3a18', stone: '#4a6e2e', accent: '#bff292', glow: '184,242,146' }
+    : { frame: '#143a3e', stone: '#256e74', accent: '#a8eef4', glow: '168,238,244' };
+
+  const halfW  = 11;
+  const dh     = 50;                  // total door height in px
+  const archR  = halfW;
+  const topY   = baseY - dh;          // very top (arch peak baseline)
+
+  // backlit halo (radial gradient — pulses slowly)
+  const pulse = 0.55 + Math.sin(t * 1.6) * 0.25;
+  const halo = ctx.createRadialGradient(cx, topY + dh / 2, 2, cx, topY + dh / 2, 26);
+  halo.addColorStop(0, `rgba(${C.glow},${pulse * 0.55})`);
+  halo.addColorStop(0.6, `rgba(${C.glow},${pulse * 0.15})`);
+  halo.addColorStop(1, `rgba(${C.glow},0)`);
+  ctx.fillStyle = halo;
+  ctx.fillRect(cx - 28, topY + dh / 2 - 28, 56, 56);
+
+  // outer frame (slightly larger silhouette)
+  ctx.fillStyle = C.frame;
+  ctx.fillRect(cx - halfW - 2, topY + archR, (halfW + 2) * 2, dh - archR + 2);
+  ctx.beginPath();
+  ctx.arc(cx, topY + archR, halfW + 2, Math.PI, 2 * Math.PI);
+  ctx.fill();
+
+  // inner stone facing
+  ctx.fillStyle = C.stone;
+  ctx.fillRect(cx - halfW, topY + archR, halfW * 2, dh - archR);
+  ctx.beginPath();
+  ctx.arc(cx, topY + archR, halfW, Math.PI, 2 * Math.PI);
+  ctx.fill();
+
+  // portal void (the opening — clipped so particles stay inside)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(cx - halfW + 2, topY + archR, halfW * 2 - 4, dh - archR - 1);
+  ctx.arc(cx, topY + archR, halfW - 2, Math.PI, 2 * Math.PI);
+  ctx.clip();
+
+  ctx.fillStyle = '#0c0805';
+  ctx.fillRect(cx - halfW + 2, topY + archR - halfW, halfW * 2 - 4, dh);
+
+  // inner glow column
+  const colG = ctx.createLinearGradient(cx, baseY, cx, topY);
+  colG.addColorStop(0, `rgba(${C.glow},0.35)`);
+  colG.addColorStop(1, `rgba(${C.glow},0.05)`);
+  ctx.fillStyle = colG;
+  ctx.fillRect(cx - halfW + 2, topY + archR - halfW, halfW * 2 - 4, dh);
+
+  // rising element particles — slow, contemplative drift
+  for (let i = 0; i < 5; i++) {
+    const seed = i * 0.41 + d.x * 0.13;
+    const tt = (t * 0.45 + seed) % 1;
+    const py2 = baseY - 4 - tt * (dh - 10);
+    const wob = Math.sin(tt * Math.PI * 2.2 + i) * 4;
+    const px2 = cx + wob;
+    const r = 2.6 * (1 - tt) + 0.6;
+    ctx.fillStyle = `rgba(${C.glow},${(1 - tt) * 0.95})`;
+    ctx.beginPath();
+    ctx.arc(px2, py2, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // bright core
+  ctx.fillStyle = `rgba(${C.glow},${pulse * 0.55})`;
+  ctx.beginPath();
+  ctx.arc(cx, topY + dh * 0.55, 4 + pulse * 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  // keystone at top (element accent)
+  ctx.fillStyle = C.accent;
+  ctx.fillRect(cx - 4, topY - 1, 8, 3);
+  ctx.fillRect(cx - 2, topY - 3, 4, 2);
+
+  // threshold step at bottom
+  ctx.fillStyle = C.frame;
+  ctx.fillRect(cx - halfW - 3, baseY - 3, (halfW + 3) * 2, 3);
+  ctx.fillStyle = C.accent;
+  ctx.fillRect(cx - halfW - 3, baseY - 3, (halfW + 3) * 2, 1);
+}
+
+function drawPillar(P) {
+  // animated grow-in (first ~10 frames) and crumble-out (last ~30 frames)
+  const aliveT = P.startLife - P.life;
+  const rise   = Math.min(1, aliveT / PILLAR_RISE_FRAMES);
+  const fade   = P.life < 30 ? P.life / 30 : 1;
+  const visH   = P.h * rise * fade;
+  const visY   = P.y + P.h - visH;
+
+  // base shadow on ground
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(P.x - 2, P.y + P.h - 1, P.w + 4, 3);
+
+  // main stone column (darker outline)
+  ctx.fillStyle = '#2a1f17';
+  ctx.fillRect(P.x, visY, P.w, visH);
+  // inner stone face
+  ctx.fillStyle = '#5a4a3a';
+  ctx.fillRect(P.x + 1, visY + 1, P.w - 2, visH - 2);
+  // highlight strip
+  ctx.fillStyle = '#7a6452';
+  ctx.fillRect(P.x + 2, visY + 2, 3, Math.max(0, visH - 4));
+  // bottom shadow band
+  ctx.fillStyle = '#3a2c20';
+  ctx.fillRect(P.x + 1, P.y + P.h - 4, P.w - 2, 3);
+  // top capstone (mossy green for Earth-flavor)
+  if (rise > 0.4) {
+    ctx.fillStyle = '#4a6a32';
+    ctx.fillRect(P.x, visY, P.w, 4);
+    ctx.fillStyle = '#86d76b';
+    ctx.fillRect(P.x + 2, visY, P.w - 4, 1);
+    // little tufts of moss
+    ctx.fillStyle = '#5a8a3a';
+    ctx.fillRect(P.x + 4, visY + 1, 2, 2);
+    ctx.fillRect(P.x + P.w - 8, visY + 2, 3, 2);
+  }
+  // weathered cracks
+  if (visH > 16) {
+    ctx.strokeStyle = '#2a1a10';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(P.x + 18, visY + 8);
+    ctx.lineTo(P.x + 14, visY + visH - 8);
+    ctx.moveTo(P.x + 9, visY + 14);
+    ctx.lineTo(P.x + 11, visY + visH - 14);
+    ctx.stroke();
+  }
+
+  // crumbling particles when expiring
+  if (P.life < 30) {
+    const t = performance.now() / 100;
+    for (let i = 0; i < 4; i++) {
+      const px = P.x + ((i * 7 + (t | 0)) % P.w);
+      const py = P.y + ((i * 11 + (t * 1.3 | 0)) % P.h);
+      ctx.fillStyle = `rgba(122,100,82,${0.7 * (P.life / 30)})`;
+      ctx.fillRect(px, py, 2, 2);
+    }
+  }
+}
+
+function drawCooldownRing(p, remaining, total, readyColor, fillingColor, dotColor) {
+  // larger readable ring floating above the character's head
+  const cx = p.x + p.w / 2;
+  const cy = p.y - 16;
+  const r  = 10;
+  const progress = 1 - remaining / total;
+
+  // soft halo behind so it stays legible over busy backgrounds
+  const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, r + 5);
+  halo.addColorStop(0, 'rgba(0,0,0,0.55)');
+  halo.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // dim base ring (empty track)
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // progress arc
+  ctx.strokeStyle = progress >= 1 ? readyColor : fillingColor;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // remaining-seconds text
+  const sec = Math.ceil(remaining / 60);
+  ctx.fillStyle = progress >= 1 ? dotColor : '#ffffff';
+  ctx.font = 'bold 10px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(sec), cx, cy + 0.5);
+}
+
+function drawGem(x, y) {
+  const t = performance.now() / 300;
+  const bob = Math.sin(t) * 2;
+  ctx.save();
+  ctx.translate(x, y + bob);
+  ctx.fillStyle = '#fff8c0';
+  ctx.beginPath();
+  ctx.moveTo(0, -7);
+  ctx.lineTo(5, 0);
+  ctx.lineTo(0, 7);
+  ctx.lineTo(-5, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#f4d56a';
+  ctx.beginPath();
+  ctx.moveTo(0, -5);
+  ctx.lineTo(3, 0);
+  ctx.lineTo(0, 5);
+  ctx.lineTo(-3, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawPlayer(p) {
+  const cx = p.x + p.w / 2;
+
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(cx, p.y + p.h + 2, p.w * 0.45, 3.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (p.isEarth) drawTroll(p);
+  else           drawElf(p);
+}
+
+function drawTroll(p) {
+  // Earth-spirit troll: squat, green-skinned, big belly, tusks, leather loincloth
+  const x = p.x, y = p.y, w = p.w, h = p.h;
+  const cx = x + w / 2;
+  const facing = p.facing;
+  const t = performance.now() / 260;
+  const moving = p.onGround && Math.abs(p.vx) > 0.1;
+  const stepBob = moving ? Math.sin(t * 4) * 1.0 : 0;
+  const armSwing = moving ? Math.sin(t * 4) * 3 : 0;
+
+  // skin palette (mossy green)
+  const skinDk = '#2e4818';
+  const skin   = '#5e7a30';
+  const skinLt = '#82a850';
+  const tusk   = '#ecdfbc';
+  const cloth  = '#4a3018';
+  const clothDk= '#251608';
+  const eye    = '#1a0e08';
+
+  // bare feet (no boots — troll feet)
+  ctx.fillStyle = skinDk;
+  ctx.fillRect(x + 1, y + h - 5, 8, 5);
+  ctx.fillRect(x + w - 9, y + h - 5, 8, 5);
+  // toe nails
+  ctx.fillStyle = '#1a0e08';
+  ctx.fillRect(x + 1, y + h - 2, 2, 2);
+  ctx.fillRect(x + 4, y + h - 2, 2, 2);
+  ctx.fillRect(x + w - 9, y + h - 2, 2, 2);
+  ctx.fillRect(x + w - 6, y + h - 2, 2, 2);
+
+  // stubby thick legs
+  ctx.fillStyle = skin;
+  ctx.fillRect(x + 2, y + h - 14, 9, 9);
+  ctx.fillRect(x + w - 11, y + h - 14, 9, 9);
+  ctx.fillStyle = skinDk;
+  ctx.fillRect(x + 2, y + h - 14, 9, 2);
+  ctx.fillRect(x + w - 11, y + h - 14, 9, 2);
+
+  // tattered leather loincloth
+  ctx.fillStyle = cloth;
+  ctx.fillRect(x, y + h - 22, w, 9);
+  // rope belt
+  ctx.fillStyle = '#8a5a30';
+  ctx.fillRect(x + 1, y + h - 22, w - 2, 2);
+  // tatter strips at bottom
+  ctx.fillStyle = clothDk;
+  for (let i = 0; i < 5; i++) {
+    const tx = x + 1 + i * 5;
+    const tt = 2 + ((i * 3) % 4);
+    ctx.fillRect(tx, y + h - 14, 3, tt);
+  }
+
+  // huge round belly
+  const bellyY = y + 30 + stepBob;
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(cx, bellyY, 12.5, 9.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // belly highlight
+  ctx.fillStyle = skinLt;
+  ctx.beginPath();
+  ctx.ellipse(cx - 3, bellyY - 2, 6, 3.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // belly button
+  ctx.fillStyle = skinDk;
+  ctx.beginPath();
+  ctx.arc(cx, bellyY + 3, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // thick arms hanging at sides (with light swing)
+  ctx.fillStyle = skinDk;
+  ctx.fillRect(x - 2, y + 28 + armSwing, 5, 12);
+  ctx.fillRect(x + w - 3, y + 28 - armSwing, 5, 12);
+  ctx.fillStyle = skin;
+  ctx.fillRect(x - 2, y + 28 + armSwing, 5, 10);
+  ctx.fillRect(x + w - 3, y + 28 - armSwing, 5, 10);
+  // clenched fists (darker)
+  ctx.fillStyle = skinDk;
+  ctx.fillRect(x - 3, y + 38 + armSwing, 6, 4);
+  ctx.fillRect(x + w - 3, y + 38 - armSwing, 6, 4);
+
+  // hunched head sitting low and forward
+  const headY = y + 12 + stepBob;
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(cx + facing * 1, headY, 10, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // top-of-head highlight
+  ctx.fillStyle = skinLt;
+  ctx.beginPath();
+  ctx.ellipse(cx - 2 + facing, headY - 4, 5, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // pointy ears (sticking out sides)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(cx - 9, headY);
+  ctx.lineTo(cx - 13, headY - 3);
+  ctx.lineTo(cx - 8, headY + 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 9, headY);
+  ctx.lineTo(cx + 13, headY - 3);
+  ctx.lineTo(cx + 8, headY + 4);
+  ctx.closePath();
+  ctx.fill();
+  // ear inner shade
+  ctx.fillStyle = skinDk;
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, headY);
+  ctx.lineTo(cx - 11.5, headY - 2);
+  ctx.lineTo(cx - 9, headY + 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 10, headY);
+  ctx.lineTo(cx + 11.5, headY - 2);
+  ctx.lineTo(cx + 9, headY + 2);
+  ctx.closePath();
+  ctx.fill();
+
+  // big lumpy nose
+  ctx.fillStyle = skinDk;
+  ctx.beginPath();
+  ctx.ellipse(cx + facing * 2, headY + 2, 3.2, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // nose highlight
+  ctx.fillStyle = skinLt;
+  ctx.fillRect(cx + facing * 1 - 1, headY, 2, 1);
+
+  // small beady deep-set eyes (under brow ridge)
+  ctx.fillStyle = '#221208';
+  ctx.fillRect(cx - 5 + facing, headY - 3, 4, 2);     // brow shadow
+  ctx.fillRect(cx + 1 + facing, headY - 3, 4, 2);
+  ctx.fillStyle = '#f4d860';                          // amber eyes
+  ctx.fillRect(cx - 4 + facing, headY - 1, 2, 2);
+  ctx.fillRect(cx + 2 + facing, headY - 1, 2, 2);
+  ctx.fillStyle = eye;
+  ctx.fillRect(cx - 3 + facing, headY - 1, 1, 2);
+  ctx.fillRect(cx + 3 + facing, headY - 1, 1, 2);
+
+  // mouth — scowling grimace
+  ctx.fillStyle = '#1a0a02';
+  ctx.fillRect(cx - 4, headY + 6, 8, 2);
+  // protruding tusks (upper canines from lower jaw)
+  ctx.fillStyle = tusk;
+  ctx.beginPath();
+  ctx.moveTo(cx - 3, headY + 8);
+  ctx.lineTo(cx - 3.5, headY + 4);
+  ctx.lineTo(cx - 2, headY + 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 3, headY + 8);
+  ctx.lineTo(cx + 3.5, headY + 4);
+  ctx.lineTo(cx + 2, headY + 8);
+  ctx.closePath();
+  ctx.fill();
+  // tusk shadow
+  ctx.fillStyle = '#a89866';
+  ctx.fillRect(cx - 3, headY + 7, 1, 1);
+  ctx.fillRect(cx + 3, headY + 7, 1, 1);
+
+  // a few scars/warts on the head
+  ctx.fillStyle = skinDk;
+  ctx.fillRect(cx - 7, headY - 1, 1, 1);
+  ctx.fillRect(cx + 6, headY + 2, 1, 1);
+  ctx.fillRect(cx + 4, headY - 4, 1, 1);
+}
+
+function drawElf(p) {
+  // Wind-spirit elf: slender, pointed ears, hooded cloak with flowing edges
+  const x = p.x, y = p.y, w = p.w, h = p.h;
+  const cx = x + w / 2;
+  const facing = p.facing;
+  const t = performance.now() / 220;
+  const stepBob = p.onGround && Math.abs(p.vx) > 0.1 ? Math.sin(t * 3.5) * 0.8 : 0;
+  const cloakWave = Math.sin(t * 1.3) * 1.5;
+  const hairFloat = Math.sin(t * 0.9) * 1.2;
+
+  // slim boots
+  ctx.fillStyle = '#0e1c24';
+  ctx.fillRect(x + 3, y + h - 7, 6, 7);
+  ctx.fillRect(x + w - 9, y + h - 7, 6, 7);
+  ctx.fillStyle = '#1a3848';
+  ctx.fillRect(x + 3, y + h - 7, 6, 2);
+  ctx.fillRect(x + w - 9, y + h - 7, 6, 2);
+
+  // slim legs (dark tights)
+  ctx.fillStyle = '#1a3848';
+  ctx.fillRect(x + 4, y + h - 18, 4, 12);
+  ctx.fillRect(x + w - 8, y + h - 18, 4, 12);
+
+  // cloak (long, with wavy bottom edge)
+  ctx.fillStyle = '#1a3a48';
+  ctx.beginPath();
+  ctx.moveTo(x + 2, y + 16 + stepBob);
+  ctx.lineTo(x - 2 + cloakWave, y + h - 14);
+  ctx.lineTo(x + 1, y + h - 10 + cloakWave * 0.5);
+  ctx.lineTo(x + 5, y + h - 14 - cloakWave * 0.3);
+  ctx.lineTo(cx, y + h - 12 + cloakWave * 0.4);
+  ctx.lineTo(x + w - 5, y + h - 14 + cloakWave * 0.3);
+  ctx.lineTo(x + w - 1, y + h - 10 - cloakWave * 0.5);
+  ctx.lineTo(x + w + 2 - cloakWave, y + h - 14);
+  ctx.lineTo(x + w - 2, y + 16 + stepBob);
+  ctx.closePath();
+  ctx.fill();
+
+  // cloak inner trim (lighter cyan)
+  ctx.fillStyle = '#3a7a8a';
+  ctx.fillRect(cx - 4, y + 18 + stepBob, 8, h - 36);
+
+  // tunic peek (bright cyan signature)
+  ctx.fillStyle = '#6fdbe8';
+  ctx.fillRect(cx - 2, y + 20 + stepBob, 4, h - 40);
+
+  // chest emblem (glowing dot)
+  const glow = 0.6 + Math.sin(t * 2) * 0.3;
+  ctx.fillStyle = `rgba(168,238,244,${glow})`;
+  ctx.beginPath();
+  ctx.arc(cx, y + 26 + stepBob, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#a8eef4';
+  ctx.beginPath();
+  ctx.arc(cx, y + 26 + stepBob, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // arms (thin, holding still or trailing)
+  const armAngle = p.onGround && Math.abs(p.vx) > 0.1 ? Math.sin(t * 3.5) * 2 : cloakWave * 0.4;
+  ctx.fillStyle = '#1a3a48';
+  ctx.fillRect(x + 1, y + 24 + stepBob + armAngle, 3, 11);
+  ctx.fillRect(x + w - 4, y + 24 + stepBob - armAngle, 3, 11);
+  // hands
+  ctx.fillStyle = '#dceee4';
+  ctx.fillRect(x + 1, y + 34 + stepBob + armAngle, 3, 3);
+  ctx.fillRect(x + w - 4, y + 34 + stepBob - armAngle, 3, 3);
+
+  // face (slim oval — drawn as rectangle with rounded top)
+  const headTopY = y - 2 + stepBob;
+  ctx.fillStyle = '#e8f4ec';
+  ctx.fillRect(cx - 6, y + 4 + stepBob, 12, 11);
+  ctx.beginPath();
+  ctx.arc(cx, y + 5 + stepBob, 6, Math.PI, 2 * Math.PI);
+  ctx.fill();
+  // chin (slightly narrower)
+  ctx.fillRect(cx - 5, y + 13 + stepBob, 10, 4);
+  ctx.beginPath();
+  ctx.moveTo(cx - 5, y + 17 + stepBob);
+  ctx.lineTo(cx, y + 19 + stepBob);
+  ctx.lineTo(cx + 5, y + 17 + stepBob);
+  ctx.closePath();
+  ctx.fill();
+
+  // pointed ears (sweep up and out)
+  ctx.fillStyle = '#dceee4';
+  ctx.beginPath();
+  ctx.moveTo(cx - 6, y + 8 + stepBob);
+  ctx.lineTo(cx - 10, y + 3 + stepBob);
+  ctx.lineTo(cx - 6, y + 13 + stepBob);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 6, y + 8 + stepBob);
+  ctx.lineTo(cx + 10, y + 3 + stepBob);
+  ctx.lineTo(cx + 6, y + 13 + stepBob);
+  ctx.closePath();
+  ctx.fill();
+  // ear inner shading
+  ctx.fillStyle = '#b8d4cc';
+  ctx.beginPath();
+  ctx.moveTo(cx - 7, y + 9 + stepBob);
+  ctx.lineTo(cx - 8.5, y + 5 + stepBob);
+  ctx.lineTo(cx - 6.5, y + 11 + stepBob);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 7, y + 9 + stepBob);
+  ctx.lineTo(cx + 8.5, y + 5 + stepBob);
+  ctx.lineTo(cx + 6.5, y + 11 + stepBob);
+  ctx.closePath();
+  ctx.fill();
+
+  // long hair (silver-blue, sweeping)
+  ctx.fillStyle = '#9cc8d4';
+  ctx.fillRect(cx - 6, y + stepBob, 12, 5);
+  // hair fringe
+  ctx.fillRect(cx - 6, y + 4 + stepBob, 12, 2);
+  // flowing hair strand to the back
+  ctx.beginPath();
+  ctx.moveTo(cx - facing * 6, y + 3 + stepBob);
+  ctx.quadraticCurveTo(
+    cx - facing * 11, y + 8 + stepBob + hairFloat,
+    cx - facing * 9, y + 16 + stepBob + hairFloat
+  );
+  ctx.lineTo(cx - facing * 6, y + 14 + stepBob);
+  ctx.closePath();
+  ctx.fill();
+  // hair highlight
+  ctx.fillStyle = '#bcdde4';
+  ctx.fillRect(cx - 5, y + 1 + stepBob, 10, 2);
+
+  // eyes (almond, cyan)
+  ctx.fillStyle = '#0a2832';
+  ctx.fillRect(cx - 4 + facing, y + 10 + stepBob, 3, 2);
+  ctx.fillRect(cx + 1 + facing, y + 10 + stepBob, 3, 2);
+  // eye glow (cyan iris)
+  ctx.fillStyle = '#a8eef4';
+  ctx.fillRect(cx - 3 + facing, y + 10 + stepBob, 1, 1);
+  ctx.fillRect(cx + 2 + facing, y + 10 + stepBob, 1, 1);
+}
+
+// ─── input handlers ──────────────────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  // prevent arrow scroll, etc.
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) {
+    e.preventDefault();
+  }
+  if (e.code === 'KeyR' && (mode === 'over' || mode === 'playing')) {
+    startGame();
+  }
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+startBtn.addEventListener('click', startGame);
+restartBtn.addEventListener('click', startGame);
+
+function startGame() {
+  mode = 'playing';
+  chunksCleared = 0;
+  gemsCollected = 0;
+  prevChunkIdx = -1;
+  particles = [];
+  flash = 0;
+  // fresh seed each run (unless the player explicitly picks one — see seed input)
+  seed = (Math.random() * 0x7fffffff) | 0;
+  rng = mulberry32(seed);
+  if (seedDisplay) seedDisplay.textContent = seed;
+  loadChunk();
+  updateHUD();
+  overlay.classList.add('hidden');
+  gameOver.classList.add('hidden');
+  hud.classList.remove('hidden');
+}
+
+// ─── main loop ───────────────────────────────────────────────────────────────
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+// initial render so canvas isn't blank under menu
+ctx.fillStyle = '#2a1f17';
+ctx.fillRect(0, 0, VIEW_W, H);
+bestScoreEl.textContent = best;
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
