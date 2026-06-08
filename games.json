@@ -54,5 +54,19 @@
       "emoji": "🎈",
       "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/cave-balloon/"
     }
+    ,{
+      "id": "shark-waves",
+      "name": "Shark Waves",
+      "description": "Ride endless procedural waves as a shark. Dive into the slope, launch off the crest, eat seagulls for speed, dodge boats — and don't let your momentum die or something hungry comes up from the deep.",
+      "controls": [
+        "Space / Tap & hold — dive",
+        "Release at the crest to breach",
+        "Land on a descending wave for a Perfect Slide"
+      ],
+      "category": "action",
+      "color": "#67d4ff",
+      "emoji": "🦈",
+      "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/shark-waves/"
+    }
   ]
 }

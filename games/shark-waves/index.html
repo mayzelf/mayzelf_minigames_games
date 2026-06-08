@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shark Waves</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #07111c;
+    color: #f0f4f8;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  canvas {
+    display: block;
+    border-radius: 8px;
+    border: 2px solid #19324a;
+    touch-action: none;
+    background: #0c1d33;
+    max-width: 100vw;
+    max-height: 100dvh;
+  }
+
+  #overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(7, 17, 28, 0.88);
+    gap: 18px;
+    z-index: 10;
+    padding: 24px;
+    text-align: center;
+  }
+
+  #overlay.hidden { display: none; }
+
+  #overlay h1 {
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 800;
+    color: #67d4ff;
+    letter-spacing: -1px;
+    text-shadow: 0 2px 0 #0a2238, 0 6px 18px rgba(103, 212, 255, 0.35);
+  }
+
+  #overlay p {
+    font-size: clamp(0.85rem, 2.5vw, 1rem);
+    color: #a0b9d0;
+    max-width: 360px;
+    line-height: 1.6;
+  }
+
+  #overlay .score-display {
+    font-size: clamp(1rem, 3vw, 1.3rem);
+    color: #f5d77c;
+    font-weight: 700;
+  }
+
+  #overlay .best {
+    color: #9ad0ff;
+    font-size: 0.95rem;
+  }
+
+  #overlay button {
+    background: #67d4ff;
+    color: #062236;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.08s, background 0.15s;
+  }
+  #overlay button:hover { background: #8ddfff; }
+  #overlay button:active { transform: scale(0.97); }
+
+  .hud {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+    z-index: 5;
+    font-weight: 700;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+  }
+  .hud .distance { color: #fff; font-size: clamp(1rem, 3vw, 1.4rem); }
+  .hud .combo { color: #f5d77c; font-size: clamp(0.9rem, 2.5vw, 1.1rem); min-height: 1.2em; }
+  .hud .speed-wrap {
+    background: rgba(0,0,0,0.4);
+    border-radius: 4px;
+    width: clamp(120px, 25vw, 240px);
+    height: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .hud .speed-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #ff5555 0%, #f5d77c 35%, #67d4ff 100%);
+    width: 50%;
+    transition: width 0.1s linear;
+  }
+
+  .wip-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: repeating-linear-gradient(
+      45deg,
+      #f5d77c,
+      #f5d77c 12px,
+      #1a1a1a 12px,
+      #1a1a1a 24px
+    );
+    color: #1a1a1a;
+    text-align: center;
+    font-weight: 900;
+    font-size: clamp(0.7rem, 2vw, 0.9rem);
+    letter-spacing: 2px;
+    padding: 4px 8px;
+    z-index: 100;
+    pointer-events: none;
+    text-shadow: 0 0 4px #f5d77c, 0 0 4px #f5d77c, 0 0 4px #f5d77c;
+  }
+
+  .hud { top: 40px; }
+
+  .flash-perfect {
+    position: fixed;
+    left: 50%;
+    top: 35%;
+    transform: translate(-50%, -50%) scale(1);
+    color: #f5d77c;
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
+    font-weight: 900;
+    text-shadow: 0 2px 0 #0a2238, 0 6px 18px rgba(245,215,124,0.7);
+    pointer-events: none;
+    z-index: 6;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.4s;
+  }
+  .flash-perfect.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+</style>
+</head>
+<body>
+
+<div class="wip-banner">⚠ WORK IN PROGRESS ⚠</div>
+
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div>
+    <div class="distance" id="distance">0 m</div>
+    <div class="combo" id="combo"></div>
+  </div>
+  <div class="speed-wrap" title="Momentum"><div class="speed-bar" id="speedBar"></div></div>
+</div>
+
+<div class="flash-perfect" id="perfectFlash">PERFECT!</div>
+
+<div id="overlay">
+  <h1>Shark Waves</h1>
+  <p>You are a shark riding endless waves. Hold <strong>Space</strong> (or tap &amp; hold) to dive — release at the crest to launch into the sky. Land on a descending wave for a perfect slide.</p>
+  <p>Eat seagulls for a speed boost. Avoid boats. If your momentum dies, something hungry is waiting in the deep.</p>
+  <div class="score-display" id="finalScore"></div>
+  <div class="best" id="bestScore"></div>
+  <button id="startBtn">Start</button>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Canvas setup ----------
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.min(window.innerWidth, 1280);
+    H = Math.min(window.innerHeight, 720);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- Sprite layer (asset-swappable) ----------
+  // Drop PNGs into ./assets/ with the names below and they'll be used automatically.
+  // Until then, the fallback vector drawings are rendered. See README.md for spec.
+  const SPRITES = {
+    shark:    { src: './assets/shark.png',    w: 110, h: 50,  img: null, ready: false },
+    seagull:  { src: './assets/seagull.png',  w: 50,  h: 36,  img: null, ready: false },
+    boat:     { src: './assets/boat.png',     w: 140, h: 80,  img: null, ready: false },
+    cthulhu:  { src: './assets/cthulhu.png',  w: 240, h: 320, img: null, ready: false },
+    sky:      { src: './assets/sky.png',      w: 1280,h: 720, img: null, ready: false },
+    mountains:{ src: './assets/mountains.png',w: 1280,h: 220, img: null, ready: false },
+  };
+  for (const key in SPRITES) {
+    const s = SPRITES[key];
+    const img = new Image();
+    img.onload = () => { s.img = img; s.ready = true; };
+    img.onerror = () => { /* fall back to vector */ };
+    img.src = s.src;
+  }
+
+  // ---------- Game constants ----------
+  // Tuned for a human-readable pace: top scroll speed ≈ 12 px/frame so the
+  // camera takes ~1.8s to cross the canvas at full tilt.
+
+  // Air physics
+  const G = 0.4;                // gravity per frame while airborne
+  const AIR_DIVE = 1.4;         // extra downforce per frame when input held in air
+                                // — ~3.5× gravity so holding space sharply cuts the arch
+  const AIR_DRAG = 1.0;
+
+  // In-water: NO self-sustain. Friction always drains. The ONLY way to gain
+  // speed is to hold space while on a downslope. Holding on an uphill is
+  // neutral — friction still drains, but the input doesn't actively punish.
+  const FRICTION = 0.997;
+  const DOWN_BOOST = 0.7;       // per-frame: along += slope * DOWN_BOOST when held + slope>0
+
+  // Landing
+  const PERFECT_EFFICIENCY = 0.94;
+  const PERFECT_MIN_SLOPE = 0.10;
+  const PERFECT_BONUS = 1.22;
+  const BAD_BOUNCE = 0.7;
+
+  // Misc
+  const PERFECT_COMBO_DECAY_MS = 1400;
+  const SEAGULL_BONUS = 1.5;
+  const BOAT_PENALTY = 0.5;
+  const CTHULHU_SPEED = 1.6;
+  const CTHULHU_GRAB_TIME = 2.5;
+  const MOMENTUM_EMA = 0.03;
+  const START_SPEED = 5.0;
+  const MAX_SPEED = 13;
+  const PIXELS_PER_METER = 12;
+
+  // Launch (curvature-driven). At a wave PEAK the surface curves away below
+  // the tangent — when v²·κ > G·BIAS, gravity can't bend the shark's path
+  // fast enough to follow the curve, and the shark flies off into an arch.
+  const LAUNCH_CURVATURE_BIAS = 0.35;
+  // Springboard effect: smooth sine waves have slope≈0 right at the peak, so
+  // a pure tangent launch is nearly horizontal. Give the shark an upward kick
+  // proportional to its speed to convert wave momentum into actual airtime.
+  const LAUNCH_KICK = 0.7;
+
+  // ---------- Wave terrain ----------
+  // Rounded rolling waves: one dominant low-frequency sine with a small
+  // secondary for variation. Pure sines = smooth derivatives = predictable
+  // slopes that a human can ride.
+  const WATER_BASE = () => H * 0.62;
+  function waveY(x) {
+    const base = WATER_BASE();
+    return base
+      + 75 * Math.sin(x * 0.0058)
+      + 18 * Math.sin(x * 0.0103 + 1.5);
+  }
+  function waveSlope(x) {
+    return 75 * 0.0058 * Math.cos(x * 0.0058)
+         + 18 * 0.0103 * Math.cos(x * 0.0103 + 1.5);
+  }
+
+  // ---------- State ----------
+  let running = false;
+  let shark, camera, entities, particles;
+  let bestDistance = parseInt(localStorage.getItem('sharkwaves.best') || '0', 10);
+  let combo, comboTimer, perfectFlashTimer;
+  let cthulhuTimer, cthulhuActive, cthulhuGrabbed, cthulhuY, cthulhuVy;
+  let lastSpawnX, nextSeagullX, nextBoatWave;
+  const WAVELENGTH = 2 * Math.PI / 0.0058;  // primary wave wavelength (~1083 px)
+  const BOAT_CHANCE_PER_WAVE = 0.05;
+  let timeAlive;
+  let momentum;
+  let inputHeld = false;
+
+  function reset() {
+    // Start exactly on the surface with velocity aligned to the slope so the
+    // first frame doesn't transition to air or bad-land.
+    const startX = 200;
+    const slope0 = waveSlope(startX);
+    const a0 = Math.atan(slope0);
+    shark = {
+      x: startX,
+      y: waveY(startX),
+      vx: Math.cos(a0) * START_SPEED,
+      vy: Math.sin(a0) * START_SPEED,
+      angle: a0,
+      inWater: true,
+      lastLeaveX: -1,
+    };
+    camera = { x: 0 };
+    entities = { seagulls: [], boats: [] };
+    particles = [];
+    combo = 0;
+    comboTimer = 0;
+    perfectFlashTimer = 0;
+    cthulhuTimer = 0;
+    cthulhuActive = false;
+    cthulhuGrabbed = false;
+    cthulhuY = H + 200;
+    cthulhuVy = 0;
+    lastSpawnX = 0;
+    nextSeagullX = 600;
+    // Skip the first wave so the player isn't immediately confronted with a boat.
+    nextBoatWave = Math.floor(shark.x / WAVELENGTH) + 1;
+    timeAlive = 0;
+    momentum = START_SPEED;
+  }
+
+  // ---------- Input ----------
+  function press()   { inputHeld = true; }
+  function release() { inputHeld = false; }
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); if (!running) startGame(); else press(); }
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'Space') { e.preventDefault(); release(); }
+  });
+  canvas.addEventListener('pointerdown', e => { e.preventDefault(); if (!running) startGame(); else press(); });
+  canvas.addEventListener('pointerup',   e => { e.preventDefault(); release(); });
+  canvas.addEventListener('pointercancel', release);
+  // overlay button
+  document.getElementById('startBtn').addEventListener('click', startGame);
+
+  function startGame() {
+    reset();
+    running = true;
+    document.getElementById('overlay').classList.add('hidden');
+  }
+
+  function gameOver() {
+    running = false;
+    bestDistance = Math.max(bestDistance, Math.floor(shark.x / PIXELS_PER_METER));
+    localStorage.setItem('sharkwaves.best', bestDistance);
+    document.getElementById('finalScore').textContent =
+      `${Math.floor(shark.x / PIXELS_PER_METER)} m`;
+    document.getElementById('bestScore').textContent =
+      `Best: ${bestDistance} m`;
+    document.getElementById('startBtn').textContent = 'Play again';
+    document.getElementById('overlay').classList.remove('hidden');
+  }
+
+  // ---------- Update ----------
+  function update(dt) {
+    timeAlive += dt;
+
+    // --- Shark physics ---
+    if (!cthulhuActive) {
+      if (shark.inWater) {
+        // ----- IN WATER -----
+        // No self-sustain: friction always drains. The ONLY way to gain speed
+        // is to hold space on a downslope. Holding on an uphill costs extra.
+        const slope = waveSlope(shark.x);
+        const slopeAngle = Math.atan(slope);
+        const tx = Math.cos(slopeAngle);
+        const ty = Math.sin(slopeAngle);
+
+        let along = Math.hypot(shark.vx, shark.vy);
+
+        // Per design: only space + downhill grants speed. Anything else
+        // is just friction drain.
+        if (inputHeld && slope > 0) along += slope * DOWN_BOOST;
+        along *= FRICTION;
+
+        if (along < 0) along = 0;
+        if (along > MAX_SPEED) along = MAX_SPEED;
+
+        shark.vx = tx * along;
+        shark.vy = ty * along;
+
+        // Step position along the surface.
+        shark.x += shark.vx;
+        shark.y = waveY(shark.x);
+        shark.angle = slopeAngle;
+
+        // Launch detection: at a wave PEAK (visual high point), waveY is at a
+        // local minimum so d²y/dx² > 0. If the shark's speed is high enough
+        // that gravity can't bend its path tightly enough to follow the curve,
+        // it launches into the air. κ ≈ dSlope/dx ≈ d²y/dx².
+        const slopeAhead = waveSlope(shark.x + 6);
+        const dSlope = (slopeAhead - slope) / 6;
+        if (dSlope > 0 && along * along * dSlope > G * LAUNCH_CURVATURE_BIAS) {
+          shark.inWater = false;
+          shark.lastLeaveX = shark.x;
+          // Upward springboard kick: in screen coords, negative vy = upward.
+          shark.vy -= along * LAUNCH_KICK;
+          spawnSplash(shark.x, shark.y, 12, '#bcd6ee');
+        }
+      } else {
+        // ----- IN AIR: ballistic -----
+        shark.vy += G;
+        if (inputHeld) shark.vy += AIR_DIVE;
+        shark.vx *= AIR_DRAG;
+        shark.x += shark.vx;
+        shark.y += shark.vy;
+        shark.angle = Math.atan2(shark.vy, shark.vx);
+
+        const wy = waveY(shark.x);
+        if (shark.y >= wy) {
+          // landing
+          const slope = waveSlope(shark.x);
+          const slopeAngle = Math.atan(slope);
+          const tx = Math.cos(slopeAngle);
+          const ty = Math.sin(slopeAngle);
+
+          const speed = Math.hypot(shark.vx, shark.vy);
+          const dot = (shark.vx * tx + shark.vy * ty) / Math.max(speed, 0.001);
+          const efficiency = Math.max(BAD_BOUNCE, dot);
+          const isPerfect = dot > PERFECT_EFFICIENCY && slope > PERFECT_MIN_SLOPE;
+          const bonus = isPerfect ? PERFECT_BONUS : 1.0;
+          const newSpeed = Math.min(speed * efficiency * bonus, MAX_SPEED);
+
+          shark.vx = tx * newSpeed;
+          shark.vy = ty * newSpeed;
+          shark.y = wy;
+          shark.inWater = true;
+          shark.angle = slopeAngle;
+
+          if (isPerfect) {
+            combo += 1;
+            comboTimer = PERFECT_COMBO_DECAY_MS;
+            perfectFlashTimer = 600;
+            spawnSplash(shark.x, wy, 18, '#f5d77c');
+          } else {
+            combo = 0;
+            spawnSplash(shark.x, wy, 10, '#bcd6ee');
+          }
+        }
+      }
+
+      // --- Momentum tracking (EMA of total speed) + Cthulhu trigger ---
+      // Use total speed because in-water vx/vy are slope-projected; total
+      // speed equals along-slope speed. Only sample while in water to avoid
+      // punishing brief in-air dips.
+      const totalSpeed = Math.hypot(shark.vx, shark.vy);
+      if (shark.inWater) {
+        momentum = momentum * (1 - MOMENTUM_EMA) + totalSpeed * MOMENTUM_EMA;
+      }
+      const lowMomentum = momentum < CTHULHU_SPEED;
+      if (lowMomentum) cthulhuTimer += dt / 1000;
+      else cthulhuTimer = Math.max(0, cthulhuTimer - dt / 500); // recover twice as fast
+      if (cthulhuTimer >= CTHULHU_GRAB_TIME) {
+        cthulhuActive = true;
+        cthulhuGrabbed = false;
+        cthulhuY = H + 80;
+        cthulhuVy = -4.5;
+      }
+    } else {
+      // cthulhu sequence — squid rises from below, grabs shark, drags down
+      if (!cthulhuGrabbed) {
+        cthulhuY += cthulhuVy; // rising (vy negative)
+        // The squid's tentacle tips reach ~60px above its body center; grab
+        // when the tips reach the shark.
+        if (cthulhuY - 70 <= waveY(shark.x)) {
+          cthulhuGrabbed = true;
+        }
+      } else {
+        // Shark sits in the tentacle bundle, ~60px above the squid body center.
+        shark.y = cthulhuY - 60;
+        shark.angle += 0.08;
+        cthulhuY += 3.5;
+        if (shark.y > H + 100) gameOver();
+      }
+    }
+
+    // --- Camera follow ---
+    camera.x = shark.x - W * 0.30;
+
+    // --- Combo timer decay ---
+    if (comboTimer > 0) {
+      comboTimer -= dt;
+      if (comboTimer <= 0) combo = 0;
+    }
+    if (perfectFlashTimer > 0) perfectFlashTimer -= dt;
+
+    // --- Spawn entities ahead of camera ---
+    const aheadX = camera.x + W + 100;
+    while (nextSeagullX < aheadX) {
+      // seagulls fly above the wave at varied heights
+      const sx = nextSeagullX;
+      const surfaceAt = waveY(sx);
+      const altitude = 80 + Math.random() * 180;
+      entities.seagulls.push({
+        x: sx,
+        y: surfaceAt - altitude,
+        baseY: surfaceAt - altitude,
+        flap: Math.random() * Math.PI * 2,
+        alive: true,
+      });
+      nextSeagullX += 250 + Math.random() * 400;
+    }
+    // For each new wave the camera reveals, 5% chance to spawn a boat at a
+    // random x within that wave.
+    const aheadWave = Math.floor(aheadX / WAVELENGTH);
+    while (nextBoatWave <= aheadWave) {
+      if (Math.random() < BOAT_CHANCE_PER_WAVE) {
+        const bx = nextBoatWave * WAVELENGTH + Math.random() * WAVELENGTH;
+        entities.boats.push({ x: bx, hit: false });
+      }
+      nextBoatWave++;
+    }
+
+    // --- Cull behind camera ---
+    const behindX = camera.x - 200;
+    entities.seagulls = entities.seagulls.filter(s => s.x > behindX && s.alive);
+    entities.boats   = entities.boats.filter(b => b.x > behindX);
+
+    // --- Seagull animation + collision ---
+    for (const g of entities.seagulls) {
+      g.flap += dt * 0.012;
+      g.y = g.baseY + Math.sin(g.flap) * 6;
+      const dx = g.x - shark.x;
+      const dy = g.y - shark.y;
+      if (dx * dx + dy * dy < 36 * 36 && g.alive) {
+        g.alive = false;
+        shark.vx = Math.min(MAX_SPEED, shark.vx + SEAGULL_BONUS);
+        spawnFeathers(g.x, g.y);
+      }
+    }
+
+    // --- Boat collision ---
+    for (const b of entities.boats) {
+      if (b.hit) continue;
+      const surfaceHere = waveY(b.x);
+      // boat sits at the surface, hull is roughly 100 wide
+      if (Math.abs(b.x - shark.x) < 50 && Math.abs(surfaceHere - shark.y) < 40) {
+        b.hit = true;
+        shark.vx *= BOAT_PENALTY;
+        shark.vy = Math.min(shark.vy, -2);
+        combo = 0;
+        spawnSplash(b.x, surfaceHere, 22, '#ffcc66');
+      }
+    }
+
+    // --- Particles ---
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.18;
+      p.life -= dt;
+    }
+    particles = particles.filter(p => p.life > 0);
+  }
+
+  function spawnSplash(x, y, count, color) {
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x, y,
+        vx: (Math.random() - 0.5) * 5,
+        vy: -Math.random() * 5 - 1,
+        life: 500 + Math.random() * 400,
+        maxLife: 800,
+        color,
+        r: 2 + Math.random() * 2,
+      });
+    }
+  }
+  function spawnFeathers(x, y) {
+    for (let i = 0; i < 12; i++) {
+      particles.push({
+        x, y,
+        vx: (Math.random() - 0.5) * 4,
+        vy: -Math.random() * 3,
+        life: 700 + Math.random() * 400,
+        maxLife: 1100,
+        color: '#ffffff',
+        r: 2 + Math.random() * 2,
+      });
+    }
+  }
+
+  // ---------- Render ----------
+  function render() {
+    // background sky
+    if (SPRITES.sky.ready) {
+      ctx.drawImage(SPRITES.sky.img, 0, 0, W, H);
+    } else {
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#ffb085');
+      grad.addColorStop(0.35, '#f08fb1');
+      grad.addColorStop(0.7, '#8a6db3');
+      grad.addColorStop(1, '#3b4d80');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+      // sun
+      ctx.fillStyle = 'rgba(255, 240, 200, 0.85)';
+      ctx.beginPath();
+      ctx.arc(W * 0.7, H * 0.28, 55, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // parallax mountains
+    drawMountains();
+
+    // water
+    drawWater();
+
+    // boats (drawn at the surface)
+    for (const b of entities.boats) drawBoat(b);
+
+    // seagulls
+    for (const g of entities.seagulls) if (g.alive) drawSeagull(g);
+
+    // particles
+    for (const p of particles) {
+      const a = Math.max(0, p.life / p.maxLife);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x - camera.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // shark
+    drawShark();
+
+    // cthulhu
+    if (cthulhuActive) drawCthulhu();
+  }
+
+  function drawMountains() {
+    const off = camera.x * 0.25;
+    if (SPRITES.mountains.ready) {
+      const mw = SPRITES.mountains.w;
+      const mh = SPRITES.mountains.h;
+      const startX = -((off) % mw);
+      for (let x = startX; x < W; x += mw) {
+        ctx.drawImage(SPRITES.mountains.img, x, H * 0.45, mw, mh);
+      }
+    } else {
+      // back layer — base extends to bottom of canvas so wave valleys don't reveal sky
+      const horizon = H * 0.62;
+      ctx.fillStyle = '#4a5a82';
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      const step = 60;
+      for (let x = 0; x <= W + step; x += step) {
+        const px = x + off;
+        const h = 70 + 50 * Math.sin(px * 0.003) + 30 * Math.sin(px * 0.011 + 1.2);
+        ctx.lineTo(x, horizon - h);
+      }
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fill();
+
+      // front layer
+      ctx.fillStyle = '#2f3e60';
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W + step; x += step) {
+        const px = x + off * 1.4;
+        const h = 40 + 30 * Math.sin(px * 0.005 + 2) + 20 * Math.sin(px * 0.015);
+        ctx.lineTo(x, horizon - h);
+      }
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  function drawWater() {
+    // Build the surface polygon from samples
+    ctx.fillStyle = '#1a4a6e';
+    ctx.beginPath();
+    const step = 6;
+    ctx.moveTo(0, H);
+    for (let sx = 0; sx <= W + step; sx += step) {
+      const worldX = sx + camera.x;
+      const y = waveY(worldX);
+      ctx.lineTo(sx, y);
+    }
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    ctx.fill();
+
+    // lighter top band
+    ctx.strokeStyle = 'rgba(160, 220, 255, 0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let sx = 0; sx <= W + step; sx += step) {
+      const worldX = sx + camera.x;
+      const y = waveY(worldX);
+      if (sx === 0) ctx.moveTo(sx, y);
+      else ctx.lineTo(sx, y);
+    }
+    ctx.stroke();
+
+    // subtle foam dots
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    for (let sx = 0; sx <= W + step; sx += step * 4) {
+      const worldX = sx + camera.x;
+      const slope = waveSlope(worldX);
+      if (Math.abs(slope) < 0.05) {
+        const y = waveY(worldX);
+        ctx.fillRect(sx, y + 5 + (worldX % 7), 6, 1);
+      }
+    }
+  }
+
+  function drawShark() {
+    const sx = shark.x - camera.x;
+    const sy = shark.y;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(shark.angle);
+    if (SPRITES.shark.ready) {
+      const s = SPRITES.shark;
+      ctx.drawImage(s.img, -s.w / 2, -s.h / 2, s.w, s.h);
+    } else {
+      drawSharkVector();
+    }
+    ctx.restore();
+  }
+
+  function drawSharkVector() {
+    // body
+    ctx.fillStyle = '#586d82';
+    ctx.beginPath();
+    ctx.moveTo(-45, 0);
+    ctx.quadraticCurveTo(-30, -20, 10, -16);
+    ctx.quadraticCurveTo(40, -10, 55, 0);
+    ctx.quadraticCurveTo(40, 12, 10, 16);
+    ctx.quadraticCurveTo(-30, 20, -45, 0);
+    ctx.fill();
+
+    // belly
+    ctx.fillStyle = '#cdd6e0';
+    ctx.beginPath();
+    ctx.moveTo(-30, 6);
+    ctx.quadraticCurveTo(0, 20, 40, 8);
+    ctx.quadraticCurveTo(20, 18, -15, 18);
+    ctx.closePath();
+    ctx.fill();
+
+    // dorsal fin
+    ctx.fillStyle = '#445566';
+    ctx.beginPath();
+    ctx.moveTo(-5, -16);
+    ctx.lineTo(-15, -32);
+    ctx.lineTo(5, -16);
+    ctx.closePath();
+    ctx.fill();
+
+    // tail
+    ctx.fillStyle = '#586d82';
+    ctx.beginPath();
+    ctx.moveTo(-45, 0);
+    ctx.lineTo(-65, -14);
+    ctx.lineTo(-58, 0);
+    ctx.lineTo(-65, 14);
+    ctx.closePath();
+    ctx.fill();
+
+    // eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(28, -4, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(29, -4, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // mouth
+    ctx.strokeStyle = '#22303d';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(40, 6);
+    ctx.lineTo(52, 4);
+    ctx.stroke();
+  }
+
+  function drawSeagull(g) {
+    const sx = g.x - camera.x;
+    ctx.save();
+    ctx.translate(sx, g.y);
+    if (SPRITES.seagull.ready) {
+      const s = SPRITES.seagull;
+      ctx.drawImage(s.img, -s.w / 2, -s.h / 2, s.w, s.h);
+    } else {
+      const flap = Math.sin(g.flap) * 0.8;
+      // wings drawn first (behind body)
+      ctx.strokeStyle = '#e8eef5';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-2, -2);
+      ctx.quadraticCurveTo(-14, -10 - flap * 5, -22, -3 - flap * 7);
+      ctx.moveTo(-2, -2);
+      ctx.quadraticCurveTo(10, -12 - flap * 5, 18, -4 - flap * 7);
+      ctx.stroke();
+      // wing tips — dark
+      ctx.strokeStyle = '#2a3a4a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-18, -3 - flap * 7);
+      ctx.lineTo(-22, -3 - flap * 7);
+      ctx.moveTo(14, -4 - flap * 7);
+      ctx.lineTo(18, -4 - flap * 7);
+      ctx.stroke();
+      // body
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 13, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#2a3a4a';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      // beak
+      ctx.fillStyle = '#f5a55c';
+      ctx.beginPath();
+      ctx.moveTo(13, 0);
+      ctx.lineTo(20, 1);
+      ctx.lineTo(13, 3);
+      ctx.closePath();
+      ctx.fill();
+      // eye
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(8, -2, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawBoat(b) {
+    const sx = b.x - camera.x;
+    const sy = waveY(b.x);
+    ctx.save();
+    ctx.translate(sx, sy);
+    // tilt with the wave
+    ctx.rotate(Math.atan(waveSlope(b.x)) * 0.6);
+    if (SPRITES.boat.ready) {
+      const s = SPRITES.boat;
+      ctx.drawImage(s.img, -s.w / 2, -s.h + 14, s.w, s.h);
+    } else {
+      // hull
+      const hullColor = b.hit ? '#7a3a3a' : '#a05a3a';
+      ctx.fillStyle = hullColor;
+      ctx.beginPath();
+      ctx.moveTo(-50, 0);
+      ctx.lineTo(50, 0);
+      ctx.lineTo(40, 16);
+      ctx.lineTo(-40, 16);
+      ctx.closePath();
+      ctx.fill();
+      // hull dark band
+      ctx.fillStyle = '#5a3220';
+      ctx.fillRect(-50, -3, 100, 4);
+      // cabin
+      ctx.fillStyle = '#e8d2a0';
+      ctx.fillRect(-15, -22, 30, 22);
+      ctx.fillStyle = '#7c4a2a';
+      ctx.fillRect(-15, -22, 30, 4);
+      // window
+      ctx.fillStyle = '#67d4ff';
+      ctx.fillRect(-10, -18, 8, 8);
+      ctx.fillRect(2, -18, 8, 8);
+      // mast
+      ctx.strokeStyle = '#3a2a1a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -22);
+      ctx.lineTo(0, -55);
+      ctx.stroke();
+      // flag
+      ctx.fillStyle = '#cc4444';
+      ctx.beginPath();
+      ctx.moveTo(0, -55);
+      ctx.lineTo(15, -50);
+      ctx.lineTo(0, -45);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawCthulhu() {
+    const sx = shark.x - camera.x;
+    ctx.save();
+    ctx.translate(sx, cthulhuY);
+    if (SPRITES.cthulhu.ready) {
+      const s = SPRITES.cthulhu;
+      ctx.drawImage(s.img, -s.w / 2, -s.h / 2, s.w, s.h);
+    } else {
+      drawCthulhuVector();
+    }
+    ctx.restore();
+  }
+
+  function drawCthulhuVector() {
+    // Inverted squid rising from below — mantle points downward, tentacles
+    // reach upward to grab the shark. Origin (0,0) is the squid's body center.
+    const t = timeAlive / 100;
+    const grabbed = cthulhuGrabbed;
+
+    // ----- Tentacles (drawn first so the body overlaps their bases) -----
+    const TENT = 7;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < TENT; i++) {
+      const idx = i - (TENT - 1) / 2; // -3 .. +3
+      const baseX = idx * 11;
+      const baseY = -15;
+      // Each tentacle reaches upward and outward; central ones reach straight up.
+      const spread = idx * 18;
+      const phase = t * 2.4 + i * 0.9;
+      const wave = Math.sin(phase) * (grabbed ? 4 : 14);
+
+      // When grabbing, central tentacles curl inward to hug the shark (which
+      // sits at y = -60 in this local frame).
+      const isWrap = grabbed && Math.abs(idx) <= 1.5;
+      const reach = grabbed ? 70 : 95 + Math.sin(t + i) * 12;
+      const tipX = isWrap ? wave * 0.2 : spread + wave;
+      const tipY = isWrap ? -65 + Math.sin(phase) * 4 : -reach;
+
+      const cp1x = baseX + wave * 0.5 + spread * 0.2;
+      const cp1y = baseY - reach * 0.35;
+      const cp2x = (isWrap ? spread * 0.4 + wave * 0.3 : tipX - wave * 0.4);
+      const cp2y = tipY + reach * 0.25;
+
+      // Tentacle stroke (thicker at base, thinner at tip — draw twice for taper)
+      ctx.strokeStyle = '#4a2466';
+      ctx.lineWidth = 11 - Math.abs(idx) * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, tipX, tipY);
+      ctx.stroke();
+
+      // Underside highlight
+      ctx.strokeStyle = '#6b3a8e';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, tipX, tipY);
+      ctx.stroke();
+
+      // Suckers along tentacle
+      ctx.fillStyle = '#c89cdb';
+      for (let k = 1; k <= 5; k++) {
+        const tk = k / 6;
+        const omt = 1 - tk;
+        const px = omt*omt*omt*baseX + 3*omt*omt*tk*cp1x + 3*omt*tk*tk*cp2x + tk*tk*tk*tipX;
+        const py = omt*omt*omt*baseY + 3*omt*omt*tk*cp1y + 3*omt*tk*tk*cp2y + tk*tk*tk*tipY;
+        ctx.beginPath();
+        ctx.arc(px, py, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // ----- Body / mantle (tear-drop with the point hanging downward) -----
+    ctx.fillStyle = '#6b3a8e';
+    ctx.beginPath();
+    ctx.moveTo(0, 140);            // bottom tip
+    ctx.quadraticCurveTo(-52, 90, -48, 25);
+    ctx.quadraticCurveTo(-42, -18, -22, -18);   // top-left of head
+    ctx.quadraticCurveTo(0, -22, 22, -18);
+    ctx.quadraticCurveTo(42, -18, 48, 25);
+    ctx.quadraticCurveTo(52, 90, 0, 140);
+    ctx.fill();
+
+    // Side fins (small triangular flaps)
+    ctx.fillStyle = '#532076';
+    ctx.beginPath();
+    ctx.moveTo(-46, 10);
+    ctx.lineTo(-64, 5);
+    ctx.lineTo(-44, 28);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(46, 10);
+    ctx.lineTo(64, 5);
+    ctx.lineTo(44, 28);
+    ctx.closePath();
+    ctx.fill();
+
+    // Belly highlight
+    ctx.fillStyle = '#8b55a8';
+    ctx.beginPath();
+    ctx.ellipse(-10, 55, 10, 38, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes — large, glowing, pulsing
+    const pulse = (Math.sin(t * 2.5) + 1) / 2;
+    // Outer glow
+    ctx.fillStyle = `rgba(255, 220, 100, ${0.18 + pulse * 0.18})`;
+    ctx.beginPath();
+    ctx.arc(-21, 0, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(21, 0, 20, 0, Math.PI * 2);
+    ctx.fill();
+    // Eye whites
+    ctx.fillStyle = '#ffe066';
+    ctx.beginPath();
+    ctx.arc(-21, 0, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(21, 0, 11, 0, Math.PI * 2);
+    ctx.fill();
+    // Pupils (slit, vertical)
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(-21, -2, 2.5, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(21, -2, 2.5, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Specular highlights
+    ctx.fillStyle = '#fff7c0';
+    ctx.beginPath();
+    ctx.arc(-18, -4, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(24, -4, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Beak (small dark triangle between eyes, below)
+    ctx.fillStyle = '#2a0a3e';
+    ctx.beginPath();
+    ctx.moveTo(-7, 22);
+    ctx.lineTo(0, 36);
+    ctx.lineTo(7, 22);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ---------- HUD ----------
+  function updateHUD() {
+    document.getElementById('distance').textContent = `${Math.floor(shark.x / PIXELS_PER_METER)} m`;
+    const pct = Math.max(0, Math.min(1, (momentum - CTHULHU_SPEED) / (MAX_SPEED - CTHULHU_SPEED)));
+    document.getElementById('speedBar').style.width = (pct * 100).toFixed(0) + '%';
+    const comboEl = document.getElementById('combo');
+    if (combo >= 2) comboEl.textContent = `Slide x${combo}`;
+    else comboEl.textContent = '';
+    const flash = document.getElementById('perfectFlash');
+    if (perfectFlashTimer > 0) flash.classList.add('show');
+    else flash.classList.remove('show');
+  }
+
+  // ---------- Loop ----------
+  let lastT = performance.now();
+  function frame(now) {
+    const dt = Math.min(50, now - lastT);
+    lastT = now;
+    if (running) {
+      update(dt);
+      updateHUD();
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+  reset();
+  // pre-fill best label on first paint
+  document.getElementById('bestScore').textContent = bestDistance > 0 ? `Best: ${bestDistance} m` : '';
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
