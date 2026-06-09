@@ -1,0 +1,38 @@
+<svg width="100" height="40" viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="topGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#55efc4"/>
+      <stop offset="100%" stop-color="#00b894"/>
+    </linearGradient>
+    <linearGradient id="sideGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00b894"/>
+      <stop offset="100%" stop-color="#00876a"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#005a45" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Platform shadow -->
+  <rect x="2" y="4" width="96" height="34" rx="8" fill="#005a45" opacity="0.2"/>
+
+  <!-- Platform body -->
+  <rect x="0" y="0" width="100" height="34" rx="8" fill="url(#sideGrad)" filter="url(#shadow)"/>
+
+  <!-- Top surface -->
+  <rect x="2" y="1" width="96" height="14" rx="6" fill="url(#topGrad)"/>
+
+  <!-- Grass tufts on top -->
+  <path d="M 10 1 Q 12 -3 14 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 30 1 Q 32 -4 34 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 50 1 Q 52 -3 54 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 70 1 Q 72 -4 74 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 90 1 Q 92 -3 94 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Surface detail lines -->
+  <line x1="15" y1="18" x2="85" y2="18" stroke="#00a884" stroke-width="0.5" opacity="0.5"/>
+  <line x1="20" y1="24" x2="80" y2="24" stroke="#00a884" stroke-width="0.5" opacity="0.4"/>
+
+  <!-- Highlight -->
+  <rect x="4" y="2" width="92" height="6" rx="3" fill="#ffffff" opacity="0.15"/>
+</svg>
