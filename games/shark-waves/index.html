@@ -241,7 +241,7 @@
   // In-water: NO self-sustain. Friction always drains. The ONLY way to gain
   // speed is to hold space while on a downslope. Holding on an uphill is
   // neutral — friction still drains, but the input doesn't actively punish.
-  const FRICTION = 0.997;
+  const FRICTION = 0.99;        // per-frame drain — applied only on uphills
   const DOWN_BOOST = 0.7;       // per-frame: along += slope * DOWN_BOOST when held + slope>0
 
   // Landing
@@ -275,14 +275,31 @@
   // secondary for variation. Pure sines = smooth derivatives = predictable
   // slopes that a human can ride.
   const WATER_BASE = () => H * 0.62;
+  // The opening wave gets an amplitude boost (up to ~2.1×) that fades out over
+  // the first ~1.5 wavelengths, giving the player a tall starting ramp to build
+  // speed on before normal-size waves take over.
+  const START_BOOST_END = 1800;
+  const START_BOOST_AMP = 1.1;
+  function startEnv(x) {
+    if (x >= START_BOOST_END) return 0;
+    const t = 1 - x / START_BOOST_END;
+    return t * t;
+  }
+  function startEnvDeriv(x) {
+    if (x >= START_BOOST_END) return 0;
+    return -2 * (1 - x / START_BOOST_END) / START_BOOST_END;
+  }
   function waveY(x) {
     const base = WATER_BASE();
+    const boost = 1 + START_BOOST_AMP * startEnv(x);
     return base
-      + 75 * Math.sin(x * 0.0058)
+      + 75 * boost * Math.sin(x * 0.0058)
       + 18 * Math.sin(x * 0.0103 + 1.5);
   }
   function waveSlope(x) {
-    return 75 * 0.0058 * Math.cos(x * 0.0058)
+    const boost = 1 + START_BOOST_AMP * startEnv(x);
+    const dBoost = START_BOOST_AMP * startEnvDeriv(x);
+    return 75 * (dBoost * Math.sin(x * 0.0058) + boost * 0.0058 * Math.cos(x * 0.0058))
          + 18 * 0.0103 * Math.cos(x * 0.0103 + 1.5);
   }
 
@@ -301,8 +318,10 @@
 
   function reset() {
     // Start exactly on the surface with velocity aligned to the slope so the
-    // first frame doesn't transition to air or bad-land.
-    const startX = 200;
+    // first frame doesn't transition to air or bad-land. Scan forward for the
+    // first solid downslope so the player always gets a usable opening ramp.
+    let startX = 200;
+    while (waveSlope(startX) < 0.35 && startX < 200 + WAVELENGTH) startX += 8;
     const slope0 = waveSlope(startX);
     const a0 = Math.atan(slope0);
     shark = {
@@ -385,8 +404,14 @@
 
         // Per design: only space + downhill grants speed. Anything else
         // is just friction drain.
-        if (inputHeld && slope > 0) along += slope * DOWN_BOOST;
-        along *= FRICTION;
+        // Downhill: holding space accelerates; releasing is neutral (no gain, no loss).
+        // Uphill/flat: friction drains — but only after a 3s grace period so the
+        // player has time to build up momentum off the opening wave.
+        if (slope > 0) {
+          if (inputHeld) along += slope * DOWN_BOOST;
+        } else if (timeAlive > 3000) {
+          along *= FRICTION;
+        }
 
         if (along < 0) along = 0;
         if (along > MAX_SPEED) along = MAX_SPEED;
