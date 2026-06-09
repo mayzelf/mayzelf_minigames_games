@@ -565,6 +565,13 @@
       if (dx * dx + dy * dy < 36 * 36 && g.alive) {
         g.alive = false;
         shark.vx = Math.min(MAX_SPEED, shark.vx + SEAGULL_BONUS);
+        // Pop the shark upward — works in water (launches into air) or in air
+        // (extends the arc), giving the catch a satisfying kick.
+        shark.vy -= 6;
+        if (shark.inWater) {
+          shark.inWater = false;
+          shark.lastLeaveX = shark.x;
+        }
         spawnFeathers(g.x, g.y);
       }
     }
