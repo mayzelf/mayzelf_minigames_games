@@ -68,5 +68,19 @@
       "emoji": "🦈",
       "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/shark-waves/"
     }
+    ,{
+      "id": "fineey-up",
+      "name": "Fineey UP",
+      "description": "Bounce a tiny blue creature up an endless tower of platforms. Stomp spiky enemies from above, snag spring orbs for big launches, and shoot threats out of the sky — but one fall and it's all the way back down.",
+      "controls": [
+        "Arrow Keys / A,D — move left and right (screen wraps)",
+        "Click / Tap — shoot a projectile toward the cursor",
+        "Auto-jump on every platform landing"
+      ],
+      "category": "action",
+      "color": "#5dade2",
+      "emoji": "🦘",
+      "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/fineeyUP/"
+    }
   ]
 }
