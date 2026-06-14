@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="132" height="74" viewBox="0 0 132 74">
+  <defs>
+    <filter id="rc" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="2" seed="4" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="2.6"/>
+    </filter>
+  </defs>
+  <!-- Scribbled cloud: bumpy hand-drawn silhouette with loose interior strokes. -->
+  <g filter="url(#rc)" stroke="#2b2440" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M30 62 Q13 62 13 49 Q3 45 11 35 Q9 22 26 25 Q31 11 49 17 Q60 6 75 15 Q94 9 98 26 Q117 24 116 41 Q128 46 116 57 Q112 63 100 62 Z" fill="#ffffff" stroke-width="2.6"/>
+    <path d="M34 54 Q48 59 64 55" stroke="#2b2440" stroke-width="1.5" opacity="0.2" fill="none"/>
+    <path d="M70 57 Q86 60 102 55" stroke="#2b2440" stroke-width="1.5" opacity="0.2" fill="none"/>
+  </g>
+</svg>

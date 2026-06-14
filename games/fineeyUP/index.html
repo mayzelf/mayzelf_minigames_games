@@ -4,16 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fineey UP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shantell+Sans:ital,wght@0,400;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --ink: #2b2440;
+    --paper: #fff8ec;
+    --sky-top: #d8efff;
+    --sky-mid: #aed8f6;
+    --sky-bot: #8bc3ee;
+    --blue: #3a93d4;
+    --sun: #ffcf6b;
+  }
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   html, body {
     height: 100%;
-    background: #0f1419;
-    color: #f0f4f8;
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #1d1a2e;
+    color: var(--ink);
+    font-family: 'Shantell Sans', 'Segoe UI', system-ui, sans-serif;
     overflow: hidden;
     user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
@@ -27,28 +41,61 @@
     width: min(100vw, calc(100vh * 0.6));
     height: 100vh;
     max-width: 480px;
-    background: linear-gradient(180deg, #aed6f1 0%, #d6eaf8 100%);
     overflow: hidden;
     touch-action: none;
+    /* Layered "paper sky" — shows through the transparent Phaser canvas. */
+    background:
+      radial-gradient(circle at 22% 14%, rgba(255,255,255,0.55), transparent 42%),
+      linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 52%, var(--sky-bot) 100%);
   }
 
-  canvas { display: block; }
+  /* Dotted notebook grid + a faint corner vignette for the hand-drawn feel. */
+  #game-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: radial-gradient(rgba(43, 36, 64, 0.10) 1.4px, transparent 1.6px);
+    background-size: 26px 26px;
+    opacity: 0.55;
+  }
+  #game-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 120px rgba(43, 36, 64, 0.12);
+  }
+
+  canvas { display: block; position: relative; z-index: 1; }
 
   #hud {
     position: absolute;
-    top: 12px;
-    left: 12px;
-    right: 12px;
+    top: 14px;
+    left: 14px;
+    right: 14px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    color: #1a3550;
-    font-weight: 700;
-    font-size: 18px;
+    align-items: flex-start;
     z-index: 5;
     pointer-events: none;
-    text-shadow: 0 1px 2px rgba(255,255,255,0.6);
+    font-weight: 700;
+    font-size: 18px;
   }
+
+  #hud > div {
+    background: var(--paper);
+    color: var(--ink);
+    border: 2.5px solid var(--ink);
+    /* Slightly irregular radii fake a hand-drawn outline. */
+    border-radius: 14px 18px 13px 16px / 16px 13px 18px 14px;
+    padding: 3px 12px 4px;
+    box-shadow: 2px 2px 0 rgba(43, 36, 64, 0.28);
+    transform: rotate(-2deg);
+  }
+  #hud > #best { transform: rotate(2deg); }
 
   #overlay {
     position: absolute;
@@ -57,51 +104,77 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(15, 20, 25, 0.82);
-    gap: 14px;
+    background: rgba(24, 20, 44, 0.42);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
     z-index: 10;
-    color: #f0f4f8;
     padding: 24px;
     text-align: center;
   }
 
   #overlay.hidden { display: none; }
 
+  .panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    max-width: 340px;
+    padding: 30px 28px 32px;
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    border-radius: 28px 34px 26px 32px / 32px 26px 34px 28px;
+    box-shadow: 6px 7px 0 rgba(43, 36, 64, 0.38);
+  }
+
   #overlay h1 {
-    font-size: clamp(2rem, 7vw, 3rem);
+    font-family: 'Shantell Sans', cursive;
+    font-size: clamp(2.4rem, 9vw, 3.4rem);
     font-weight: 800;
-    color: #5dade2;
+    color: var(--blue);
     letter-spacing: -1px;
+    line-height: 1;
+    transform: rotate(-3deg);
+    text-shadow: 3px 3px 0 var(--ink);
   }
 
   #overlay p {
-    font-size: 14px;
-    color: #cbd5e0;
-    line-height: 1.6;
-    max-width: 320px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink);
+    opacity: 0.85;
+    line-height: 1.55;
+    max-width: 300px;
   }
 
   #overlay .score-display {
-    font-size: 22px;
-    font-weight: 700;
-    color: #fdcb6e;
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--ink);
+    background: var(--sun);
+    border: 2.5px solid var(--ink);
+    border-radius: 12px 16px 11px 14px / 14px 11px 16px 12px;
+    padding: 3px 18px 5px;
+    transform: rotate(-1.5deg);
   }
 
   #overlay button {
-    margin-top: 6px;
-    padding: 12px 28px;
-    background: #5dade2;
-    color: #fff;
-    border: none;
-    border-radius: 999px;
-    font-size: 16px;
-    font-weight: 700;
+    margin-top: 4px;
+    padding: 11px 32px 13px;
+    background: var(--sun);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 19px;
+    font-weight: 800;
+    border: 3px solid var(--ink);
+    border-radius: 16px 20px 15px 18px / 18px 15px 20px 16px;
+    box-shadow: 3px 3px 0 var(--ink);
     cursor: pointer;
-    transition: transform 0.15s, background 0.15s;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
   }
 
-  #overlay button:hover { background: #3498db; transform: translateY(-2px); }
-  #overlay button:active { transform: translateY(0); }
+  #overlay button:hover { transform: translate(-1px, -2px); box-shadow: 5px 5px 0 var(--ink); }
+  #overlay button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
 </style>
 </head>
 <body>
@@ -111,9 +184,11 @@
     <div id="best">Best: 0</div>
   </div>
   <div id="overlay">
-    <h1>Fineey UP</h1>
-    <p>Bounce upward as high as you can! Move left and right with arrow keys or A/D — tap or click to shoot enemies. Fall off the bottom and it's game over.</p>
-    <button id="start-btn">Start</button>
+    <div class="panel">
+      <h1>Fineey&nbsp;UP</h1>
+      <p>Bounce up an endless tower of ledges! Move with arrow keys or A/D — the screen wraps. Tap or click to fling a sparkle at the spiky grumps, snag a spring for a big launch. One fall and it's all the way back down.</p>
+      <button id="start-btn">Play</button>
+    </div>
   </div>
 </div>
 
@@ -140,85 +215,114 @@
   bestEl.textContent = 'Best: ' + bestScore;
 
   // Inline SVG assets so the game works when opened directly via file:// (no server).
+  // Everything shares a hand-drawn look: bold ink outlines + a feTurbulence "rough"
+  // filter that wobbles the edges. The filter is baked into the texture once at load,
+  // so there's no per-frame cost.
+  const INK = '#2b2440';
+  const rough = (id, freq, scale, seed) =>
+    `<filter id="${id}" x="-30%" y="-30%" width="160%" height="160%">` +
+    `<feTurbulence type="fractalNoise" baseFrequency="${freq}" numOctaves="2" seed="${seed}" result="n"/>` +
+    `<feDisplacementMap in="SourceGraphic" in2="n" scale="${scale}"/></filter>`;
+
   const SVG = {
+    // A cute little alien: mint-green egg body, big glossy almond eyes,
+    // glowing antenna bulbs and a shy smile.
     fineey: `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
 <defs>
-<radialGradient id="b" cx="45%" cy="40%" r="55%"><stop offset="0%" stop-color="#5dade2"/><stop offset="100%" stop-color="#2e86c1"/></radialGradient>
-<radialGradient id="h" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ffeaa7"/><stop offset="100%" stop-color="#fdcb6e"/></radialGradient>
+<linearGradient id="ab" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#9bf3d6"/><stop offset="100%" stop-color="#27bd91"/></linearGradient>
+<radialGradient id="abl" cx="50%" cy="0%" r="90%"><stop offset="0%" stop-color="#ffe98a"/><stop offset="100%" stop-color="#ffb938"/></radialGradient>
+${rough('rf', '0.018', '3', '7')}
 </defs>
-<line x1="42" y1="38" x2="35" y2="18" stroke="#2e86c1" stroke-width="2.5" stroke-linecap="round"/>
-<circle cx="35" cy="16" r="5" fill="#fdcb6e" stroke="#e17055" stroke-width="1.5"/>
-<line x1="58" y1="38" x2="65" y2="18" stroke="#2e86c1" stroke-width="2.5" stroke-linecap="round"/>
-<circle cx="65" cy="16" r="5" fill="#fdcb6e" stroke="#e17055" stroke-width="1.5"/>
-<ellipse cx="50" cy="62" rx="30" ry="32" fill="url(#b)"/>
-<ellipse cx="48" cy="65" rx="18" ry="20" fill="#74b9ff" opacity="0.3"/>
-<ellipse cx="38" cy="92" rx="8" ry="5" fill="#2e86c1"/>
-<ellipse cx="62" cy="92" rx="8" ry="5" fill="#2e86c1"/>
-<ellipse cx="22" cy="60" rx="8" ry="5" fill="#5dade2" transform="rotate(-20 22 60)"/>
-<ellipse cx="78" cy="60" rx="8" ry="5" fill="#5dade2" transform="rotate(20 78 60)"/>
-<circle cx="50" cy="38" r="18" fill="url(#h)"/>
-<circle cx="42" cy="35" r="7" fill="#fff"/>
-<circle cx="58" cy="35" r="7" fill="#fff"/>
-<circle cx="43" cy="34" r="4" fill="#2d3436"/>
-<circle cx="59" cy="34" r="4" fill="#2d3436"/>
-<circle cx="44" cy="33" r="1.5" fill="#fff"/>
-<circle cx="60" cy="33" r="1.5" fill="#fff"/>
-<circle cx="35" cy="42" r="5" fill="#fd79a8" opacity="0.4"/>
-<circle cx="65" cy="42" r="5" fill="#fd79a8" opacity="0.4"/>
-<path d="M44 44 Q50 50 56 44" fill="none" stroke="#2d3436" stroke-width="1.5" stroke-linecap="round"/>
+<g filter="url(#rf)" stroke="${INK}" stroke-linejoin="round" stroke-linecap="round" fill="none">
+<path d="M40 28 Q35 13 31 8" stroke-width="3"/>
+<path d="M60 28 Q65 13 69 8" stroke-width="3"/>
+<circle cx="30" cy="7" r="5.5" fill="url(#abl)" stroke-width="2.5"/>
+<circle cx="70" cy="7" r="5.5" fill="url(#abl)" stroke-width="2.5"/>
+<path d="M22 58 Q11 60 11 68" stroke-width="3"/>
+<path d="M78 58 Q89 60 89 68" stroke-width="3"/>
+<path d="M50 22 C73 22 85 41 85 61 C85 83 70 95 50 95 C30 95 15 83 15 61 C15 41 27 22 50 22 Z" fill="url(#ab)" stroke-width="3.2"/>
+<ellipse cx="50" cy="67" rx="18" ry="20" fill="#e3fff5" opacity="0.4" stroke="none"/>
+<ellipse cx="39" cy="93" rx="8" ry="4.5" fill="#1f9e79" stroke-width="2.5"/>
+<ellipse cx="61" cy="93" rx="8" ry="4.5" fill="#1f9e79" stroke-width="2.5"/>
+<ellipse cx="30" cy="60" rx="6" ry="4" fill="#ff8fab" opacity="0.45" stroke="none"/>
+<ellipse cx="70" cy="60" rx="6" ry="4" fill="#ff8fab" opacity="0.45" stroke="none"/>
+<ellipse cx="39" cy="50" rx="8" ry="11.5" fill="#1a1530" stroke-width="2.5"/>
+<ellipse cx="61" cy="50" rx="8" ry="11.5" fill="#1a1530" stroke-width="2.5"/>
+<circle cx="42" cy="45" r="3.1" fill="#fff" stroke="none"/>
+<circle cx="64" cy="45" r="3.1" fill="#fff" stroke="none"/>
+<circle cx="36" cy="54" r="1.5" fill="#fff" opacity="0.7" stroke="none"/>
+<circle cx="58" cy="54" r="1.5" fill="#fff" opacity="0.7" stroke="none"/>
+<path d="M44 71 Q50 76 56 71" stroke-width="2.5"/>
+</g>
 </svg>`,
     enemy: `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
 <defs>
-<radialGradient id="eb" cx="45%" cy="40%" r="55%"><stop offset="0%" stop-color="#ff7675"/><stop offset="100%" stop-color="#c0392b"/></radialGradient>
-<radialGradient id="eh" cx="40%" cy="30%" r="60%"><stop offset="0%" stop-color="#fdcb6e"/><stop offset="100%" stop-color="#e17055"/></radialGradient>
+<linearGradient id="eb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ff7b6b"/><stop offset="100%" stop-color="#d63a2f"/></linearGradient>
+${rough('re', '0.022', '2.6', '3')}
 </defs>
-<polygon points="15,45 5,35 22,50" fill="#e17055"/>
-<polygon points="18,60 8,65 25,65" fill="#e17055"/>
-<polygon points="85,45 95,35 78,50" fill="#e17055"/>
-<polygon points="82,60 92,65 75,65" fill="#e17055"/>
-<polygon points="38,28 33,8 44,26" fill="url(#eh)"/>
-<polygon points="62,28 67,8 56,26" fill="url(#eh)"/>
-<ellipse cx="50" cy="55" rx="35" ry="38" fill="url(#eb)"/>
-<circle cx="20" cy="30" r="6" fill="#c0392b"/>
-<circle cx="80" cy="30" r="6" fill="#c0392b"/>
-<circle cx="15" cy="65" r="5" fill="#c0392b"/>
-<circle cx="85" cy="65" r="5" fill="#c0392b"/>
-<circle cx="50" cy="15" r="7" fill="#c0392b"/>
-<ellipse cx="40" cy="50" rx="8" ry="9" fill="#ff7675"/>
-<ellipse cx="60" cy="50" rx="8" ry="9" fill="#ff7675"/>
-<circle cx="42" cy="50" r="4" fill="#2d3436"/>
-<circle cx="58" cy="50" r="4" fill="#2d3436"/>
-<path d="M32 40 L46 43" stroke="#6b1a1a" stroke-width="2.5" stroke-linecap="round"/>
-<path d="M68 40 L54 43" stroke="#6b1a1a" stroke-width="2.5" stroke-linecap="round"/>
-<path d="M38 68 Q50 62 62 68" fill="none" stroke="#6b1a1a" stroke-width="1.5"/>
-<polygon points="42,67 44,72 46,67" fill="#fff"/>
-<polygon points="50,66 52,72 54,66" fill="#fff"/>
-<polygon points="56,67 58,72 60,67" fill="#fff"/>
-<ellipse cx="38" cy="92" rx="10" ry="5" fill="#c0392b"/>
-<ellipse cx="62" cy="92" rx="10" ry="5" fill="#c0392b"/>
+<g filter="url(#re)" stroke="${INK}" stroke-linejoin="round" stroke-linecap="round" fill="none">
+<path d="M50 12 L59 29 L78 24 L71 42 L88 51 L70 59 L76 78 L57 71 L50 88 L43 71 L24 78 L30 59 L12 51 L29 42 L22 24 L41 29 Z" fill="url(#eb)" stroke-width="3.2"/>
+<circle cx="50" cy="51" r="20" fill="#ff9a8d" opacity="0.45" stroke="none"/>
+<path d="M34 41 L47 47" stroke-width="3"/>
+<path d="M66 41 L53 47" stroke-width="3"/>
+<circle cx="42" cy="50" r="6" fill="#fff" stroke-width="2.5"/>
+<circle cx="58" cy="50" r="6" fill="#fff" stroke-width="2.5"/>
+<circle cx="43" cy="51" r="3" fill="${INK}" stroke="none"/>
+<circle cx="57" cy="51" r="3" fill="${INK}" stroke="none"/>
+<path d="M40 64 L44 60 L48 64 L52 60 L56 64 L60 60" stroke-width="2.5"/>
+</g>
 </svg>`,
-    projectile: `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+    // A little dart, drawn pointing right (+x); shoot() rotates it to its heading.
+    projectile: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="22" viewBox="0 0 48 22">
 <defs>
-<radialGradient id="pc" cx="40%" cy="35%" r="55%"><stop offset="0%" stop-color="#ffeaa7"/><stop offset="50%" stop-color="#fdcb6e"/><stop offset="100%" stop-color="#f39c12"/></radialGradient>
-<radialGradient id="pg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fdcb6e" stop-opacity="0.5"/><stop offset="100%" stop-color="#fdcb6e" stop-opacity="0"/></radialGradient>
+${rough('rp', '0.05', '1', '5')}
 </defs>
-<circle cx="20" cy="20" r="18" fill="url(#pg)"/>
-<circle cx="20" cy="20" r="12" fill="url(#pc)"/>
-<circle cx="17" cy="17" r="5" fill="#fff" opacity="0.5"/>
+<g filter="url(#rp)" stroke="${INK}" stroke-linejoin="round" stroke-linecap="round">
+<path d="M3 4 L14 11 L3 18 L7 11 Z" fill="#ffcf6b" stroke-width="2"/>
+<path d="M12 9.2 L31 9.2 L31 12.8 L12 12.8 Z" fill="#6c5ce7" stroke-width="2"/>
+<path d="M28 5 L45 11 L28 17 L32 11 Z" fill="#ff5a5f" stroke-width="2"/>
+</g>
+</svg>`,
+    spring: `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+<defs>
+<linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#b6a8ff"/><stop offset="100%" stop-color="#6c5ce7"/></linearGradient>
+${rough('rs', '0.03', '1.6', '2')}
+</defs>
+<g filter="url(#rs)" stroke="${INK}" stroke-linejoin="round" stroke-linecap="round" fill="none">
+<ellipse cx="20" cy="35" rx="12" ry="3.5" fill="url(#sg)" stroke-width="2.5"/>
+<path d="M10 31 C32 29 30 23 10 21 C30 19 32 13 10 11" stroke="#6c5ce7" stroke-width="3.6"/>
+<path d="M13 11 L20 3 L27 11" stroke="#6c5ce7" stroke-width="3.6"/>
+</g>
 </svg>`,
     platform: `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="34" viewBox="0 0 100 34">
 <defs>
-<linearGradient id="pt" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#55efc4"/><stop offset="100%" stop-color="#00b894"/></linearGradient>
-<linearGradient id="ps" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#00b894"/><stop offset="100%" stop-color="#00876a"/></linearGradient>
+<linearGradient id="pl" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#7ef0c4"/><stop offset="100%" stop-color="#22c39a"/></linearGradient>
+${rough('rl', '0.03', '2.4', '9')}
 </defs>
-<rect x="0" y="0" width="100" height="34" rx="8" fill="url(#ps)"/>
-<rect x="2" y="1" width="96" height="14" rx="6" fill="url(#pt)"/>
-<path d="M10 1 Q12 -3 14 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
-<path d="M30 1 Q32 -4 34 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
-<path d="M50 1 Q52 -3 54 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
-<path d="M70 1 Q72 -4 74 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
-<path d="M90 1 Q92 -3 94 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
-<rect x="4" y="2" width="92" height="6" rx="3" fill="#fff" opacity="0.15"/>
+<g filter="url(#rl)" stroke="${INK}" stroke-linejoin="round" stroke-linecap="round" fill="none">
+<path d="M22 5 Q20 -1 24 1 Q26 -3 28 1 Q32 -2 30 5" fill="#34d399" stroke-width="2"/>
+<path d="M68 5 Q66 0 70 2 Q72 -2 74 2 Q78 -1 76 5" fill="#34d399" stroke-width="2"/>
+<rect x="5" y="5" width="90" height="25" rx="12" fill="url(#pl)" stroke-width="3.2"/>
+<path d="M14 12 Q50 9 86 12" stroke="#e7fff5" stroke-width="3" opacity="0.85"/>
+<path d="M18 24 l6 4 M34 25 l6 3 M62 24 l6 4 M78 25 l5 3" stroke="#178f6f" stroke-width="1.6" opacity="0.55"/>
+</g>
+</svg>`,
+    // Scribbled clouds — a bumpy hand-drawn silhouette (not a stack of balls),
+    // with a couple of loose interior pencil strokes. Two variants for variety.
+    cloud: `<svg xmlns="http://www.w3.org/2000/svg" width="132" height="74" viewBox="0 0 132 74">
+<defs>${rough('rc1', '0.022', '2.6', '4')}</defs>
+<g filter="url(#rc1)" stroke="${INK}" stroke-linejoin="round" stroke-linecap="round">
+<path d="M30 62 Q13 62 13 49 Q3 45 11 35 Q9 22 26 25 Q31 11 49 17 Q60 6 75 15 Q94 9 98 26 Q117 24 116 41 Q128 46 116 57 Q112 63 100 62 Z" fill="#ffffff" stroke-width="2.6"/>
+<path d="M34 54 Q48 59 64 55" stroke="${INK}" stroke-width="1.5" opacity="0.2" fill="none"/>
+<path d="M70 57 Q86 60 102 55" stroke="${INK}" stroke-width="1.5" opacity="0.2" fill="none"/>
+</g>
+</svg>`,
+    cloud2: `<svg xmlns="http://www.w3.org/2000/svg" width="116" height="66" viewBox="0 0 116 66">
+<defs>${rough('rc2', '0.026', '2.4', '11')}</defs>
+<g filter="url(#rc2)" stroke="${INK}" stroke-linejoin="round" stroke-linecap="round">
+<path d="M27 55 Q11 54 13 42 Q5 36 14 29 Q15 17 30 22 Q38 9 53 17 Q68 10 76 24 Q95 21 95 37 Q108 41 97 52 Q92 56 80 54 Z" fill="#ffffff" stroke-width="2.6"/>
+<path d="M30 47 Q44 52 60 48" stroke="${INK}" stroke-width="1.5" opacity="0.2" fill="none"/>
+</g>
 </svg>`
   };
 
@@ -248,7 +352,8 @@
     }
 
     create() {
-      this.cameras.main.setBackgroundColor('#aed6f1');
+      // Transparent so the CSS "paper sky" (gradient + dotted grid) shows through.
+      this.cameras.main.setBackgroundColor('rgba(0,0,0,0)');
       // Give the world ample vertical headroom so static bodies far above the
       // initial bounds still register collisions correctly.
       this.physics.world.setBounds(0, -1000000, GAME_W, 2000000);
@@ -272,6 +377,8 @@
 
       this.player = this.physics.add.sprite(GAME_W / 2, GAME_H - 120, 'fineey');
       this.player.setDisplaySize(56, 56);
+      // Remember the fitted scale so squash/stretch tweens can work relative to it.
+      this.playerScale = this.player.scaleX;
       this.player.body.setSize(36, 36);
       this.player.body.setOffset(32, 32);
       this.player.setDepth(5);
@@ -299,21 +406,37 @@
     }
 
     drawCloudBand(fromY, toY) {
-      // Draws a fresh patch of clouds in the world-space band [toY, fromY] (toY < fromY).
-      const gfx = this.add.graphics();
-      gfx.fillStyle(0xffffff, 0.55);
-      const count = Math.max(6, Math.floor((fromY - toY) / 80));
+      // Fills the world-space band [toY, fromY] (toY < fromY) with scribbled cloud
+      // sprites plus the odd "v" bird scribble. One container per band so culling
+      // (and disposal) stays a single bandTop check.
+      const band = this.add.container(0, 0);
+      const count = Math.max(4, Math.floor((fromY - toY) / 150));
       for (let i = 0; i < count; i++) {
-        const cx = Phaser.Math.Between(0, GAME_W);
+        const cx = Phaser.Math.Between(30, GAME_W - 30);
         const cy = Phaser.Math.Between(toY, fromY);
-        const r = Phaser.Math.Between(20, 38);
-        gfx.fillCircle(cx, cy, r);
-        gfx.fillCircle(cx + r * 0.7, cy + 4, r * 0.8);
-        gfx.fillCircle(cx - r * 0.6, cy + 6, r * 0.7);
+        const cloud = this.add.image(cx, cy, Math.random() < 0.5 ? 'cloud' : 'cloud2');
+        const w = Phaser.Math.Between(78, 138);
+        cloud.setDisplaySize(w, w * 0.55);
+        cloud.setAlpha(Phaser.Math.FloatBetween(0.8, 0.95));
+        cloud.setAngle(Phaser.Math.Between(-4, 4));
+        if (Math.random() < 0.5) cloud.setFlipX(true);
+        band.add(cloud);
       }
-      gfx.bandTop = toY;     // smallest Y (highest altitude)
-      gfx.bandBottom = fromY; // largest Y (lowest altitude)
-      this.cloudLayer.add(gfx);
+      const gfx = this.add.graphics();
+      const birds = Phaser.Math.Between(0, 2);
+      for (let i = 0; i < birds; i++) {
+        const bx = Phaser.Math.Between(40, GAME_W - 40);
+        const by = Phaser.Math.Between(toY + 20, fromY - 20);
+        gfx.lineStyle(2, 0x2b2440, 0.3);
+        gfx.beginPath();
+        gfx.moveTo(bx - 9, by); gfx.lineTo(bx - 3, by - 5); gfx.lineTo(bx + 1, by);
+        gfx.moveTo(bx + 1, by); gfx.lineTo(bx + 5, by - 5); gfx.lineTo(bx + 11, by);
+        gfx.strokePath();
+      }
+      band.add(gfx);
+      band.bandTop = toY;     // smallest Y (highest altitude)
+      band.bandBottom = fromY; // largest Y (lowest altitude)
+      this.cloudLayer.add(band);
       if (toY < this.lowestCloudY) this.lowestCloudY = toY;
     }
 
@@ -341,10 +464,12 @@
         plat.setTint(0xffeaa7);
       }
       if (allowSpring && Phaser.Math.Between(0, 100) < 12) {
-        const spring = this.springs.create(x, y - PLATFORM_H / 2 - 10, 'projectile');
-        spring.setDisplaySize(20, 20);
-        spring.setTint(0xfdcb6e);
-        spring.body.setSize(20, 20);
+        // Bottom-center origin planted on the platform top so its squash compresses
+        // downward (anchored) rather than shrinking toward its middle.
+        const spring = this.springs.create(x, y - PLATFORM_H / 2 + 3, 'spring');
+        spring.setOrigin(0.5, 1);
+        spring.setDisplaySize(30, 32);
+        spring.body.setSize(26, 28);
         spring.refreshBody();
         spring.linkedPlatform = plat;
         plat.spring = spring;
@@ -364,6 +489,19 @@
     onPlatformLand(player, platform) {
       if (this.isDead) return;
       player.body.setVelocityY(JUMP_VEL);
+      this.squashPlayer();
+    }
+
+    // Quick squash-and-stretch on bounce, kept relative to the fitted base scale.
+    squashPlayer() {
+      const s = this.playerScale;
+      this.tweens.killTweensOf(this.player);
+      this.player.setScale(s);
+      this.tweens.add({
+        targets: this.player,
+        scaleX: s * 1.22, scaleY: s * 0.8,
+        yoyo: true, duration: 110, ease: 'Quad.out'
+      });
     }
 
     onSpringHit(player, spring) {
@@ -372,8 +510,16 @@
       const playerBottom = player.body.bottom;
       if (playerBottom > spring.body.top + 14) return;
       player.body.setVelocityY(SPRING_VEL);
-      spring.setTint(0xff7675);
-      this.tweens.add({ targets: spring, scaleX: 1.4, scaleY: 0.7, yoyo: true, duration: 120 });
+      this.squashPlayer();
+      // Anchored compress (bottom origin) then springy release.
+      const bx = spring.scaleX, by = spring.scaleY;
+      this.tweens.killTweensOf(spring);
+      this.tweens.add({
+        targets: spring, scaleX: bx * 1.3, scaleY: by * 0.5,
+        duration: 70, ease: 'Quad.out',
+        yoyo: true, hold: 20,
+        onComplete: () => { spring.setScale(bx, by); }
+      });
     }
 
     onProjectileHit(projectile, enemy) {
@@ -388,6 +534,7 @@
       if (player.body.velocity.y > 0 && player.body.bottom < enemy.body.top + 20) {
         enemy.destroy();
         player.body.setVelocityY(JUMP_VEL);
+        this.squashPlayer();
         this.score += 25;
       } else {
         this.die();
@@ -395,12 +542,14 @@
     }
 
     shoot(targetX, targetY) {
-      const proj = this.projectiles.create(this.player.x, this.player.y - 10, 'projectile');
-      proj.setDisplaySize(18, 18);
-      proj.body.setSize(18, 18);
+      const proj = this.projectiles.create(this.player.x, this.player.y - 8, 'projectile');
+      proj.setDisplaySize(36, 17);
+      proj.body.setSize(30, 14);
       const dx = targetX - this.player.x;
       const dy = targetY - this.player.y;
       const d = Math.hypot(dx, dy) || 1;
+      proj.rotation = Math.atan2(dy, dx); // dart points along its heading
+      proj.setDepth(4);
       proj.body.setVelocity((dx / d) * PROJECTILE_SPEED, (dy / d) * PROJECTILE_SPEED);
       this.time.delayedCall(1500, () => { if (proj.active) proj.destroy(); });
     }
@@ -432,6 +581,10 @@
       // Flip sprite based on movement
       if (left) this.player.setFlipX(true);
       else if (right) this.player.setFlipX(false);
+
+      // Gentle lean in the direction of travel for a bit of life.
+      const targetTilt = (left ? -0.16 : right ? 0.16 : 0);
+      this.player.rotation = Phaser.Math.Linear(this.player.rotation, targetTilt, Math.min(1, (delta / 1000) * 10));
 
       // Move moving platforms
       this.platforms.children.iterate((plat) => {
@@ -539,10 +692,13 @@
     die() {
       if (this.isDead) return;
       this.isDead = true;
-      this.player.setTint(0xff4444);
+      this.player.setTint(0xff6b6b);
       this.player.body.setVelocity(0, 200);
       this.player.body.setGravityY(0);
-      this.time.delayedCall(600, () => showGameOver(this.score));
+      // Tumble downward for a little exit flourish.
+      this.tweens.killTweensOf(this.player);
+      this.tweens.add({ targets: this.player, angle: '+=540', duration: 600, ease: 'Cubic.in' });
+      this.time.delayedCall(700, () => showGameOver(this.score));
     }
   }
 
@@ -557,7 +713,7 @@
       parent: 'game-container',
       width: GAME_W,
       height: GAME_H,
-      backgroundColor: '#aed6f1',
+      transparent: true,
       fps: { target: 60, forceSetTimeOut: false },
       scale: {
         mode: Phaser.Scale.FIT,
@@ -578,10 +734,12 @@
       bestEl.textContent = 'Best: ' + bestScore;
     }
     overlay.innerHTML = `
-      <h1>Game Over</h1>
-      <div class="score-display">Score: ${score}</div>
-      <p>Best: ${bestScore}</p>
-      <button id="restart-btn">Play Again</button>
+      <div class="panel">
+        <h1>Game&nbsp;Over</h1>
+        <div class="score-display">★ ${score}</div>
+        <p>Best ${bestScore}</p>
+        <button id="restart-btn">Play Again</button>
+      </div>
     `;
     overlay.classList.remove('hidden');
     document.getElementById('restart-btn').addEventListener('click', startGame);

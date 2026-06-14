@@ -1,38 +1,21 @@
-<svg width="100" height="40" viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="34" viewBox="0 0 100 34">
   <defs>
-    <linearGradient id="topGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#55efc4"/>
-      <stop offset="100%" stop-color="#00b894"/>
+    <linearGradient id="pl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7ef0c4"/><stop offset="100%" stop-color="#22c39a"/>
     </linearGradient>
-    <linearGradient id="sideGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#00b894"/>
-      <stop offset="100%" stop-color="#00876a"/>
-    </linearGradient>
-    <filter id="shadow" x="-5%" y="-5%" width="110%" height="120%">
-      <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#005a45" flood-opacity="0.25"/>
+    <filter id="rl" x="-30%" y="-30%" width="160%" height="160%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="9" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/>
     </filter>
   </defs>
-
-  <!-- Platform shadow -->
-  <rect x="2" y="4" width="96" height="34" rx="8" fill="#005a45" opacity="0.2"/>
-
-  <!-- Platform body -->
-  <rect x="0" y="0" width="100" height="34" rx="8" fill="url(#sideGrad)" filter="url(#shadow)"/>
-
-  <!-- Top surface -->
-  <rect x="2" y="1" width="96" height="14" rx="6" fill="url(#topGrad)"/>
-
-  <!-- Grass tufts on top -->
-  <path d="M 10 1 Q 12 -3 14 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
-  <path d="M 30 1 Q 32 -4 34 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
-  <path d="M 50 1 Q 52 -3 54 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
-  <path d="M 70 1 Q 72 -4 74 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
-  <path d="M 90 1 Q 92 -3 94 1" fill="none" stroke="#55efc4" stroke-width="2" stroke-linecap="round"/>
-
-  <!-- Surface detail lines -->
-  <line x1="15" y1="18" x2="85" y2="18" stroke="#00a884" stroke-width="0.5" opacity="0.5"/>
-  <line x1="20" y1="24" x2="80" y2="24" stroke="#00a884" stroke-width="0.5" opacity="0.4"/>
-
-  <!-- Highlight -->
-  <rect x="4" y="2" width="92" height="6" rx="3" fill="#ffffff" opacity="0.15"/>
+  <g filter="url(#rl)" stroke="#2b2440" stroke-linejoin="round" stroke-linecap="round" fill="none">
+    <!-- Grass tufts -->
+    <path d="M22 5 Q20 -1 24 1 Q26 -3 28 1 Q32 -2 30 5" fill="#34d399" stroke-width="2"/>
+    <path d="M68 5 Q66 0 70 2 Q72 -2 74 2 Q78 -1 76 5" fill="#34d399" stroke-width="2"/>
+    <!-- Ledge -->
+    <rect x="5" y="5" width="90" height="25" rx="12" fill="url(#pl)" stroke-width="3.2"/>
+    <path d="M14 12 Q50 9 86 12" stroke="#e7fff5" stroke-width="3" opacity="0.85"/>
+    <!-- Hatch shading -->
+    <path d="M18 24 l6 4 M34 25 l6 3 M62 24 l6 4 M78 25 l5 3" stroke="#178f6f" stroke-width="1.6" opacity="0.55"/>
+  </g>
 </svg>
