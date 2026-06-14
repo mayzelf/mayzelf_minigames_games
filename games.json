@@ -96,5 +96,20 @@
       "emoji": "🌊",
       "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/tidefall/"
     }
+    ,{
+      "id": "rail-dash",
+      "name": "Rail Dash",
+      "description": "An endless three-lane dash down the rails. Switch lanes to dodge oncoming trains and barriers, jump the low ones, roll under the high ones, and grab every coin. The longer you survive the faster it gets — chase your best run.",
+      "controls": [
+        "← / → / A,D — switch lane",
+        "↑ / W / Space — jump",
+        "↓ / S — roll under",
+        "Swipe on touch devices"
+      ],
+      "category": "action",
+      "color": "#fb923c",
+      "emoji": "🏃",
+      "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/rail-dash/"
+    }
   ]
 }
