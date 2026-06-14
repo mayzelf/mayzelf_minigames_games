@@ -82,5 +82,19 @@
       "emoji": "🦘",
       "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/fineeyUP/"
     }
+    ,{
+      "id": "tidefall",
+      "name": "Tidefall",
+      "description": "A 2048-style merge puzzle with a twist: you don't slide the board, you rotate it. The tide always pulls the drops downward — matching drops merge into a bigger swell. Reach 2048.",
+      "controls": [
+        "← / A — rotate the board left",
+        "→ / D — rotate the board right",
+        "R — restart"
+      ],
+      "category": "puzzle",
+      "color": "#38bdf8",
+      "emoji": "🌊",
+      "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/tidefall/"
+    }
   ]
 }

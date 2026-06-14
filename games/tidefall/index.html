@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tidefall</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f1419;
+      color: #f0f4f8;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #hud {
+      display: flex;
+      gap: 32px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #94a3b8;
+      letter-spacing: 0.05em;
+    }
+
+    #hud span { color: #f0f4f8; font-weight: 700; }
+
+    #canvas-wrap {
+      position: relative;
+      line-height: 0;
+    }
+
+    canvas {
+      display: block;
+      border-radius: 12px;
+      background: #0b1622;
+      border: 1px solid #14283a;
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(11, 18, 25, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      gap: 12px;
+      padding: 18px;
+    }
+
+    #overlay.hidden { display: none; }
+
+    #overlay h2 { font-size: 26px; font-weight: 800; color: #f0f4f8; }
+
+    #overlay p {
+      font-size: 14px;
+      color: #94a3b8;
+      text-align: center;
+      max-width: 280px;
+      line-height: 1.65;
+    }
+
+    #overlay button {
+      margin-top: 8px;
+      padding: 10px 28px;
+      border-radius: 8px;
+      border: none;
+      background: #38bdf8;
+      color: #07212e;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #overlay button:hover { background: #7dd3fc; }
+
+    #controls {
+      display: flex;
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    #controls button {
+      width: 96px;
+      height: 52px;
+      background: #14283a;
+      border: 1px solid #1f3b54;
+      border-radius: 10px;
+      color: #cde9fb;
+      font-size: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.1s, transform 0.05s;
+    }
+
+    #controls button .lbl { font-size: 12px; letter-spacing: 0.04em; }
+    #controls button:hover { background: #1c344b; }
+    #controls button:active { background: #38bdf8; color: #07212e; transform: translateY(1px); }
+
+    #hint {
+      margin-top: 12px;
+      font-size: 12px;
+      color: #5b7186;
+      letter-spacing: 0.03em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div id="hud">
+  SCORE <span id="lbl-score">0</span>
+  &nbsp;·&nbsp;
+  BEST <span id="lbl-best">0</span>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="game"></canvas>
+  <div id="overlay">
+    <h2>🌊 Tidefall</h2>
+    <p>Rotate the board — the tide always pulls the drops <strong style="color:#38bdf8">downward</strong>.
+       Matching drops merge into a bigger swell. Fill the sea, reach <strong style="color:#38bdf8">2048</strong>.</p>
+    <button id="btn-start">Start</button>
+  </div>
+</div>
+
+<div id="controls">
+  <button id="btn-ccw">↺ <span class="lbl">Left</span></button>
+  <button id="btn-cw"><span class="lbl">Right</span> ↻</button>
+</div>
+
+<div id="hint">← / A rotate left&nbsp;&nbsp;·&nbsp;&nbsp;→ / D rotate right&nbsp;&nbsp;·&nbsp;&nbsp;R restart</div>
+
+<script>
+// ─── config ───────────────────────────────────────────────────────────────────
+const N = 4;                 // grid is N x N
+const GAP = 12;
+const PAD = 12;
+const SPIN_MS = 130;
+const FALL_MS = 150;
+const POP_MS  = 130;
+
+// pick a board size that fits the viewport
+const BOARD = Math.max(260, Math.min(window.innerWidth - 32, 460,
+                       window.innerHeight - 230));
+const TILE = (BOARD - PAD * 2 - GAP * (N - 1)) / N;
+const PITCH = TILE + GAP;
+const M = (N - 1) / 2;        // center index
+
+// ─── palette ────────────────────────────────────────────────────────────────
+const TILE_COLORS = {
+  2:'#cffafe', 4:'#a5f3fc', 8:'#67e8f9', 16:'#38bdf8', 32:'#0ea5e9',
+  64:'#0284c7', 128:'#0369a1', 256:'#075985', 512:'#0c4a6e',
+  1024:'#0e7490', 2048:'#155e75',
+};
+const tileColor = v => TILE_COLORS[v] || '#134e4a';
+const textColor = v => v <= 8 ? '#063043' : '#eaf7ff';
+
+// ─── canvas (hi-dpi) ────────────────────────────────────────────────────────
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const DPR = window.devicePixelRatio || 1;
+canvas.style.width = BOARD + 'px';
+canvas.style.height = BOARD + 'px';
+canvas.width = BOARD * DPR;
+canvas.height = BOARD * DPR;
+ctx.scale(DPR, DPR);
+
+// ─── dom refs ────────────────────────────────────────────────────────────────
+const overlay  = document.getElementById('overlay');
+const btnStart = document.getElementById('btn-start');
+const lblScore = document.getElementById('lbl-score');
+const lblBest  = document.getElementById('lbl-best');
+
+// ─── state ───────────────────────────────────────────────────────────────────
+let grid;                 // N x N, 0 = empty
+let score = 0;
+let best = +(localStorage.getItem('tidefall-best') || 0);
+let running = false;
+let phase = 'idle';       // idle | spin | fall
+let reached2048 = false;
+
+let spinDir = 1;          // +1 cw, -1 ccw
+let anim = null;          // active animation descriptor
+let popCells = [];        // [{r,c,start}] merge/spawn pulses
+
+lblBest.textContent = best;
+
+// ─── geometry helpers ─────────────────────────────────────────────────────────
+const cellX = c => PAD + c * PITCH;
+const cellY = r => PAD + r * PITCH;
+const centerX = c => cellX(c) + TILE / 2;
+const centerY = r => cellY(r) + TILE / 2;
+
+// ─── grid ops ──────────────────────────────────────────────────────────────────
+function emptyGrid() {
+  return Array.from({ length: N }, () => new Array(N).fill(0));
+}
+
+function emptyCells(g) {
+  const out = [];
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (!g[r][c]) out.push([r, c]);
+  return out;
+}
+
+function spawn(g) {
+  const cells = emptyCells(g);
+  if (!cells.length) return null;
+  const [r, c] = cells[Math.floor(Math.random() * cells.length)];
+  g[r][c] = Math.random() < 0.9 ? 2 : 4;
+  return [r, c];
+}
+
+// rotate the whole board 90°.  dir +1 = clockwise, -1 = counter-clockwise.
+function rotate(g, dir) {
+  const out = emptyGrid();
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (dir > 0) out[c][N - 1 - r] = g[r][c];      // cw:  (r,c) -> (c, N-1-r)
+    else         out[N - 1 - c][r] = g[r][c];      // ccw: (r,c) -> (N-1-c, r)
+  }
+  return out;
+}
+
+// apply downward gravity + merges to an already-rotated grid.
+// returns { grid, moves, gained, merges } where moves describe tile travel.
+function collapse(src) {
+  const g = emptyGrid();
+  const moves = [];      // {fromR,fromC,toR,toC,value}
+  const merges = [];     // [r,c] of new merged tiles
+  let gained = 0;
+
+  for (let c = 0; c < N; c++) {
+    const items = [];                                   // bottom -> top
+    for (let r = N - 1; r >= 0; r--) if (src[r][c]) items.push({ r, v: src[r][c] });
+    let destRow = N - 1, i = 0;
+    while (i < items.length) {
+      if (i + 1 < items.length && items[i].v === items[i + 1].v) {
+        const nv = items[i].v * 2;
+        g[destRow][c] = nv;
+        gained += nv;
+        merges.push([destRow, c]);
+        moves.push({ fromR: items[i].r,     fromC: c, toR: destRow, toC: c, value: items[i].v });
+        moves.push({ fromR: items[i + 1].r, fromC: c, toR: destRow, toC: c, value: items[i + 1].v });
+        i += 2;
+      } else {
+        g[destRow][c] = items[i].v;
+        moves.push({ fromR: items[i].r, fromC: c, toR: destRow, toC: c, value: items[i].v });
+        i += 1;
+      }
+      destRow--;
+    }
+  }
+  return { grid: g, moves, gained, merges };
+}
+
+function canMergeSomewhere(g) {
+  for (const dir of [1, -1]) {
+    const res = collapse(rotate(g, dir));
+    if (res.merges.length) return true;
+  }
+  return false;
+}
+
+// ─── drawing ──────────────────────────────────────────────────────────────────
+function drawCellBg() {
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    ctx.fillStyle = '#0f2030';
+    roundRect(cellX(c), cellY(r), TILE, TILE, 8);
+    ctx.fill();
+  }
+}
+
+function roundRect(x, y, w, h, rad) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, rad);
+}
+
+function drawTile(x, y, value, scale = 1) {
+  const s = TILE * scale;
+  const off = (TILE - s) / 2;
+  ctx.fillStyle = tileColor(value);
+  roundRect(x + off, y + off, s, s, 8);
+  ctx.fill();
+
+  ctx.fillStyle = textColor(value);
+  const digits = String(value).length;
+  const fs = (digits <= 2 ? 0.42 : digits === 3 ? 0.34 : 0.27) * TILE * scale;
+  ctx.font = `700 ${fs}px 'Segoe UI', system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(value, x + TILE / 2, y + TILE / 2 + fs * 0.04);
+}
+
+function clear() { ctx.clearRect(0, 0, BOARD, BOARD); }
+
+function drawStatic() {
+  clear();
+  drawCellBg();
+  const now = performance.now();
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (!grid[r][c]) continue;
+    let scale = 1;
+    const pop = popCells.find(p => p.r === r && p.c === c);
+    if (pop) {
+      const t = Math.min(1, (now - pop.start) / POP_MS);
+      scale = 1 + 0.18 * Math.sin(t * Math.PI);
+    }
+    drawTile(cellX(c), cellY(r), grid[r][c], scale);
+  }
+  popCells = popCells.filter(p => now - p.start < POP_MS);
+  if (popCells.length) requestAnimationFrame(drawStatic);
+}
+
+// spin animation: rotate the *current* grid 0 -> ±90°, which visually lands on
+// the rotated layout.  easing in-out.
+function drawSpin(t) {
+  const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  const angle = spinDir * e * Math.PI / 2;
+  clear();
+  drawCellBg();
+  ctx.save();
+  ctx.translate(BOARD / 2, BOARD / 2);
+  ctx.rotate(angle);
+  ctx.translate(-BOARD / 2, -BOARD / 2);
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (grid[r][c]) drawTile(cellX(c), cellY(r), grid[r][c]);
+  }
+  ctx.restore();
+}
+
+// fall animation: tiles slide from rotated rows to settled rows.
+function drawFall(t) {
+  const e = 1 - Math.pow(1 - t, 3);   // ease-out
+  clear();
+  drawCellBg();
+  for (const mv of anim.moves) {
+    const x = cellX(mv.fromC);                       // column unchanged by gravity
+    const y = cellY(mv.fromR) + (cellY(mv.toR) - cellY(mv.fromR)) * e;
+    drawTile(x, y, mv.value);
+  }
+}
+
+// ─── turn flow ──────────────────────────────────────────────────────────────
+function move(dir) {
+  if (!running || phase !== 'idle') return;
+  spinDir = dir;
+  const rotated = rotate(grid, dir);
+  const result = collapse(rotated);
+
+  phase = 'spin';
+  const spinStart = performance.now();
+
+  function spinStep(now) {
+    const t = Math.min(1, (now - spinStart) / SPIN_MS);
+    drawSpin(t);
+    if (t < 1) { requestAnimationFrame(spinStep); return; }
+    startFall(result);
+  }
+  requestAnimationFrame(spinStep);
+}
+
+function startFall(result) {
+  // if gravity moves nothing, skip the fall tween
+  const moved = result.moves.some(m => m.fromR !== m.toR) || result.merges.length;
+  phase = 'fall';
+  anim = { moves: result.moves };
+  const fallStart = performance.now();
+  const dur = moved ? FALL_MS : 1;
+
+  function fallStep(now) {
+    const t = Math.min(1, (now - fallStart) / dur);
+    drawFall(t);
+    if (t < 1) { requestAnimationFrame(fallStep); return; }
+    commit(result);
+  }
+  requestAnimationFrame(fallStep);
+}
+
+function commit(result) {
+  grid = result.grid;
+  if (result.gained) {
+    score += result.gained;
+    lblScore.textContent = score;
+    if (score > best) { best = score; localStorage.setItem('tidefall-best', best); lblBest.textContent = best; }
+  }
+
+  const now = performance.now();
+  popCells = result.merges.map(([r, c]) => ({ r, c, start: now }));
+
+  const spawned = spawn(grid);
+  if (spawned) popCells.push({ r: spawned[0], c: spawned[1], start: now });
+
+  phase = 'idle';
+  drawStatic();
+
+  // win banner once
+  if (!reached2048 && gridHas(2048)) { reached2048 = true; showWin(); return; }
+
+  // game over: board full and no rotation can merge
+  if (!emptyCells(grid).length && !canMergeSomewhere(grid)) gameOver();
+}
+
+function gridHas(v) {
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (grid[r][c] === v) return true;
+  return false;
+}
+
+// ─── overlays ──────────────────────────────────────────────────────────────────
+function showWin() {
+  overlay.innerHTML = `
+    <h2>🌊 2048 — High Tide!</h2>
+    <p>You merged your way to <strong style="color:#38bdf8">2048</strong>.<br>Keep rolling for a bigger swell.</p>
+    <button id="btn-keep">Keep Going</button>`;
+  overlay.classList.remove('hidden');
+  document.getElementById('btn-keep').addEventListener('click', () => overlay.classList.add('hidden'));
+}
+
+function gameOver() {
+  running = false;
+  overlay.innerHTML = `
+    <h2>The tide went out</h2>
+    <p>No moves left.<br>Score: <strong style="color:#38bdf8">${score}</strong> &nbsp;·&nbsp; Best: <strong style="color:#38bdf8">${best}</strong></p>
+    <button id="btn-again">Play Again</button>`;
+  overlay.classList.remove('hidden');
+  document.getElementById('btn-again').addEventListener('click', start);
+}
+
+// ─── boot / restart ──────────────────────────────────────────────────────────
+function start() {
+  grid = emptyGrid();
+  spawn(grid); spawn(grid);
+  score = 0; lblScore.textContent = 0;
+  reached2048 = false;
+  popCells = [];
+  phase = 'idle';
+  running = true;
+  overlay.classList.add('hidden');
+  drawStatic();
+}
+
+// ─── input ───────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.code === 'KeyR') { e.preventDefault(); start(); return; }
+  if (!running) return;
+  if (e.code === 'ArrowLeft'  || e.code === 'KeyA') { e.preventDefault(); move(-1); }
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); move(1); }
+});
+
+document.getElementById('btn-ccw').addEventListener('click', () => move(-1));
+document.getElementById('btn-cw').addEventListener('click', () => move(1));
+btnStart.addEventListener('click', start);
+
+// touch swipe on the board
+let touchX = null;
+canvas.addEventListener('touchstart', e => { touchX = e.changedTouches[0].clientX; }, { passive: true });
+canvas.addEventListener('touchend', e => {
+  if (touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(dx) > 24) move(dx > 0 ? 1 : -1);
+  touchX = null;
+}, { passive: true });
+
+// initial idle frame behind the overlay
+grid = emptyGrid();
+drawStatic();
+</script>
+</body>
+</html>

@@ -175,6 +175,91 @@
 
   #overlay button:hover { transform: translate(-1px, -2px); box-shadow: 5px 5px 0 var(--ink); }
   #overlay button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+
+  /* Secondary "ghost" button (Inventory). */
+  button.ghost-btn { background: transparent; box-shadow: 2px 2px 0 rgba(43,36,64,0.25); border-style: dashed; font-size: 16px; padding: 8px 22px 10px; }
+
+  /* --- Unlock toast --- */
+  #toast {
+    position: absolute;
+    top: 58px; left: 50%;
+    transform: translate(-50%, -12px);
+    display: none; align-items: center; gap: 10px;
+    background: var(--paper);
+    border: 2.5px solid var(--ink);
+    border-radius: 14px 18px 13px 16px / 16px 13px 18px 14px;
+    box-shadow: 3px 3px 0 rgba(43,36,64,0.3);
+    padding: 6px 14px 7px 8px;
+    z-index: 8; pointer-events: none; max-width: 86%;
+    opacity: 0; transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  #toast.show { display: flex; }
+  #toast.in { opacity: 1; transform: translate(-50%, 0); }
+  #toast img { width: 36px; height: 36px; flex: 0 0 auto; }
+  #toast .t-main { font-weight: 800; font-size: 14px; color: var(--ink); line-height: 1.15; }
+  #toast .t-sub { font-size: 11px; font-weight: 700; opacity: 0.7; }
+
+  /* --- Inventory --- */
+  #inventory {
+    position: absolute; inset: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: center;
+    padding: 14px;
+    background: rgba(24,20,44,0.5);
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  }
+  #inventory.hidden { display: none; }
+
+  .panel.inv {
+    width: 100%; height: 100%; max-width: 460px;
+    padding: 14px; gap: 10px; align-items: stretch;
+    border-radius: 24px 28px 22px 26px / 26px 22px 28px 24px;
+  }
+
+  .inv-head { display: flex; align-items: center; justify-content: space-between; }
+  .inv-head h2 { font-size: 26px; color: var(--blue); transform: rotate(-2deg); text-shadow: 2px 2px 0 var(--ink); }
+  .icon-btn {
+    width: 36px; height: 36px; padding: 0; margin: 0;
+    font-size: 20px; line-height: 1; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 12px 14px 11px 13px / 13px 11px 14px 12px;
+  }
+
+  .inv-preview {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px;
+    border: 2.5px dashed var(--ink); border-radius: 16px;
+    background: #fffdf6;
+  }
+  .inv-preview img { width: 62px; height: 62px; flex: 0 0 auto; }
+  .inv-preview .p-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .inv-preview .p-name { font-weight: 800; font-size: 18px; }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+  .swatch { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--ink); cursor: pointer; padding: 0; }
+  .swatch.on { outline: 2.5px solid var(--blue); outline-offset: 1px; }
+
+  .inv-count { font-size: 12px; font-weight: 700; opacity: 0.75; text-align: center; }
+
+  .skin-grid {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 2px;
+    align-content: start; grid-auto-rows: min-content;
+  }
+  .skin-card {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    background: #fff; border: 2.5px solid var(--ink);
+    border-radius: 12px 16px 13px 15px / 15px 13px 16px 12px;
+    padding: 7px 4px 6px; cursor: pointer;
+    box-shadow: 2px 2px 0 rgba(43,36,64,0.18);
+  }
+  .skin-card.locked { cursor: default; opacity: 0.65; background: #efe9dc; }
+  .skin-card.sel { outline: 3px solid var(--blue); outline-offset: 1px; }
+  .skin-card img, .skin-card .lockmark { width: 48px; height: 48px; }
+  .skin-card .lockmark { display: flex; align-items: center; justify-content: center; font-size: 26px; opacity: 0.5; }
+  .skin-card .s-name { font-size: 11px; font-weight: 800; text-align: center; }
+  .badge { font-size: 9px; font-weight: 800; padding: 1px 7px 2px; border-radius: 8px; border: 1.5px solid var(--ink); white-space: nowrap; }
+  .badge.common { background: #bfe8d6; }
+  .badge.rare { background: #bcdcff; }
+  .badge.super { background: linear-gradient(90deg, #ffe08a, #ffb02e); }
 </style>
 </head>
 <body>
@@ -186,10 +271,13 @@
   <div id="overlay">
     <div class="panel">
       <h1>Fineey&nbsp;UP</h1>
-      <p>Bounce up an endless tower of ledges! Move with arrow keys or A/D — the screen wraps. Tap or click to fling a sparkle at the spiky grumps, snag a spring for a big launch. One fall and it's all the way back down.</p>
+      <p>Bounce up an endless tower of ledges! Move with arrow keys or A/D — the screen wraps. Tap or click to fling a dart at the spiky grumps, snag a spring for a big launch. One fall and it's all the way back down.</p>
       <button id="start-btn">Play</button>
+      <button id="inv-btn" class="ghost-btn">Inventory</button>
     </div>
   </div>
+  <div id="toast"></div>
+  <div id="inventory" class="hidden"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
@@ -225,36 +313,6 @@
     `<feDisplacementMap in="SourceGraphic" in2="n" scale="${scale}"/></filter>`;
 
   const SVG = {
-    // A cute little alien: mint-green egg body, big glossy almond eyes,
-    // glowing antenna bulbs and a shy smile.
-    fineey: `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
-<defs>
-<linearGradient id="ab" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#9bf3d6"/><stop offset="100%" stop-color="#27bd91"/></linearGradient>
-<radialGradient id="abl" cx="50%" cy="0%" r="90%"><stop offset="0%" stop-color="#ffe98a"/><stop offset="100%" stop-color="#ffb938"/></radialGradient>
-${rough('rf', '0.018', '3', '7')}
-</defs>
-<g filter="url(#rf)" stroke="${INK}" stroke-linejoin="round" stroke-linecap="round" fill="none">
-<path d="M40 28 Q35 13 31 8" stroke-width="3"/>
-<path d="M60 28 Q65 13 69 8" stroke-width="3"/>
-<circle cx="30" cy="7" r="5.5" fill="url(#abl)" stroke-width="2.5"/>
-<circle cx="70" cy="7" r="5.5" fill="url(#abl)" stroke-width="2.5"/>
-<path d="M22 58 Q11 60 11 68" stroke-width="3"/>
-<path d="M78 58 Q89 60 89 68" stroke-width="3"/>
-<path d="M50 22 C73 22 85 41 85 61 C85 83 70 95 50 95 C30 95 15 83 15 61 C15 41 27 22 50 22 Z" fill="url(#ab)" stroke-width="3.2"/>
-<ellipse cx="50" cy="67" rx="18" ry="20" fill="#e3fff5" opacity="0.4" stroke="none"/>
-<ellipse cx="39" cy="93" rx="8" ry="4.5" fill="#1f9e79" stroke-width="2.5"/>
-<ellipse cx="61" cy="93" rx="8" ry="4.5" fill="#1f9e79" stroke-width="2.5"/>
-<ellipse cx="30" cy="60" rx="6" ry="4" fill="#ff8fab" opacity="0.45" stroke="none"/>
-<ellipse cx="70" cy="60" rx="6" ry="4" fill="#ff8fab" opacity="0.45" stroke="none"/>
-<ellipse cx="39" cy="50" rx="8" ry="11.5" fill="#1a1530" stroke-width="2.5"/>
-<ellipse cx="61" cy="50" rx="8" ry="11.5" fill="#1a1530" stroke-width="2.5"/>
-<circle cx="42" cy="45" r="3.1" fill="#fff" stroke="none"/>
-<circle cx="64" cy="45" r="3.1" fill="#fff" stroke="none"/>
-<circle cx="36" cy="54" r="1.5" fill="#fff" opacity="0.7" stroke="none"/>
-<circle cx="58" cy="54" r="1.5" fill="#fff" opacity="0.7" stroke="none"/>
-<path d="M44 71 Q50 76 56 71" stroke-width="2.5"/>
-</g>
-</svg>`,
     enemy: `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
 <defs>
 <linearGradient id="eb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ff7b6b"/><stop offset="100%" stop-color="#d63a2f"/></linearGradient>
@@ -328,18 +386,268 @@ ${rough('rl', '0.03', '2.4', '9')}
 
   const svgToDataURI = (svg) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 
+  // ===========================================================================
+  // Skins & colour patterns
+  // ===========================================================================
+  // Darken a #rrggbb colour by factor f (0..1).
+  function shade(hex, f) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = Math.round(((n >> 16) & 255) * f);
+    const g = Math.round(((n >> 8) & 255) * f);
+    const b = Math.round((n & 255) * f);
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+  }
+
+  // Shared colour patterns. A skin unlocked a second time grants one of these as
+  // a new colour pattern instead of a duplicate entry.
+  const PALETTES = [
+    { name: 'Mint',   body: ['#9bf3d6', '#27bd91'], accent: '#ffb938', eye: '#1a1530' },
+    { name: 'Berry',  body: ['#ff9ad1', '#d6418a'], accent: '#ffe06b', eye: '#2a1030' },
+    { name: 'Sky',    body: ['#9fd8ff', '#3a8fe0'], accent: '#ffd45e', eye: '#14213f' },
+    { name: 'Sunset', body: ['#ffd07a', '#ff7a4d'], accent: '#fff1a8', eye: '#3a1620' },
+    { name: 'Grape',  body: ['#c9a8ff', '#7a4fd6'], accent: '#7df0c4', eye: '#1b1240' },
+    { name: 'Lime',   body: ['#dcff8a', '#86d92f'], accent: '#ff8fab', eye: '#20300f' },
+    { name: 'Steel',  body: ['#c7d0db', '#6b7686'], accent: '#ffd45e', eye: '#1c2230' },
+    { name: 'Aqua',   body: ['#aef0ff', '#2bc4d6'], accent: '#ff8fab', eye: '#103038' }
+  ];
+
+  // Reusable doodle parts (all reference the active palette `p`).
+  const part = {
+    foot: (p) => { const c = shade(p.body[1], 0.78);
+      return `<ellipse cx="39" cy="93" rx="8" ry="4.5" fill="${c}" stroke-width="2.5"/><ellipse cx="61" cy="93" rx="8" ry="4.5" fill="${c}" stroke-width="2.5"/>`; },
+    arms: () => `<path d="M22 58 Q11 60 11 68" stroke-width="3"/><path d="M78 58 Q89 60 89 68" stroke-width="3"/>`,
+    blush: () => `<ellipse cx="30" cy="60" rx="6" ry="4" fill="#ff8fab" opacity="0.4" stroke="none"/><ellipse cx="70" cy="60" rx="6" ry="4" fill="#ff8fab" opacity="0.4" stroke="none"/>`,
+    smile: () => `<path d="M44 71 Q50 76 56 71" stroke-width="2.5"/>`,
+    belly: () => `<ellipse cx="50" cy="67" rx="18" ry="20" fill="#ffffff" opacity="0.2" stroke="none"/>`,
+    egg: () => `<path d="M50 22 C73 22 85 41 85 61 C85 83 70 95 50 95 C30 95 15 83 15 61 C15 41 27 22 50 22 Z" fill="url(#bg)" stroke-width="3.2"/>`,
+    antL: () => `<path d="M40 28 Q35 13 31 8" stroke-width="3"/><circle cx="30" cy="7" r="5.5" fill="url(#ag)" stroke-width="2.5"/>`,
+    antR: () => `<path d="M60 28 Q65 13 69 8" stroke-width="3"/><circle cx="70" cy="7" r="5.5" fill="url(#ag)" stroke-width="2.5"/>`,
+    almond: (cx, p) => `<ellipse cx="${cx}" cy="50" rx="8" ry="11.5" fill="${p.eye}" stroke-width="2.5"/><circle cx="${cx + 3}" cy="45" r="3.1" fill="#fff" stroke="none"/><circle cx="${cx - 3}" cy="54" r="1.4" fill="#fff" opacity="0.7" stroke="none"/>`
+  };
+
+  // Each skin renders the inner <g> content for a given palette `p`.
+  const SKINS = [
+    { id: 'classic', name: 'Classic', rarity: 'Common', def: 0, render: (p) =>
+        part.antL() + part.antR() + part.arms() + part.egg() + part.belly() + part.foot(p) + part.blush()
+        + part.almond(39, p) + part.almond(61, p) + part.smile() },
+    { id: 'cyclops', name: 'Cyclops', rarity: 'Common', def: 2, render: (p) =>
+        `<path d="M50 26 Q50 12 50 7" stroke-width="3"/><circle cx="50" cy="6" r="5.5" fill="url(#ag)" stroke-width="2.5"/>`
+        + part.arms() + part.egg() + part.belly() + part.foot(p) + part.blush()
+        + `<ellipse cx="50" cy="50" rx="12.5" ry="14.5" fill="${p.eye}" stroke-width="2.5"/><circle cx="54" cy="44" r="4.2" fill="#fff" stroke="none"/><circle cx="45" cy="55" r="2" fill="#fff" opacity="0.7" stroke="none"/>`
+        + part.smile() },
+    { id: 'triclops', name: 'Triclops', rarity: 'Common', def: 5, render: (p) => {
+        const eye = (cx, cy, r) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${p.eye}" stroke-width="2.5"/><circle cx="${cx + r * 0.4}" cy="${cy - r * 0.4}" r="${r * 0.35}" fill="#fff" stroke="none"/>`;
+        return part.antL() + part.antR() + part.arms() + part.egg() + part.belly() + part.foot(p) + part.blush()
+          + eye(36, 54, 6) + eye(64, 54, 6) + eye(50, 38, 6.5) + part.smile(); } },
+    { id: 'blobby', name: 'Blobby', rarity: 'Common', def: 7, render: (p) =>
+        part.arms()
+        + `<path d="M50 28 C78 28 92 46 92 63 C92 85 73 95 50 95 C27 95 8 85 8 63 C8 46 22 28 50 28 Z" fill="url(#bg)" stroke-width="3.2"/>`
+        + `<ellipse cx="35" cy="93" rx="6" ry="3.5" fill="${shade(p.body[1], 0.78)}" stroke-width="2.5"/><ellipse cx="65" cy="93" rx="6" ry="3.5" fill="${shade(p.body[1], 0.78)}" stroke-width="2.5"/>`
+        + part.blush()
+        + `<path d="M32 56 Q39 50 46 56" stroke-width="2.5"/><path d="M54 56 Q61 50 68 56" stroke-width="2.5"/>`
+        + `<ellipse cx="50" cy="68" rx="5" ry="4" fill="${p.eye}" stroke-width="2"/>` },
+    { id: 'robo', name: 'Robo', rarity: 'Rare', def: 6, render: (p) =>
+        `<path d="M50 26 L50 13" stroke-width="3"/><path d="M50 13 L45 7 L52 7 L47 1" fill="none" stroke="${p.accent}" stroke-width="3"/>`
+        + part.arms() + part.egg()
+        + `<path d="M18 64 Q50 70 82 64" stroke-width="2" opacity="0.5"/><circle cx="26" cy="66" r="2" fill="${p.accent}" stroke-width="1.5"/><circle cx="74" cy="66" r="2" fill="${p.accent}" stroke-width="1.5"/>`
+        + part.foot(p)
+        + `<rect x="32" y="43" width="13" height="13" rx="3" fill="${p.eye}" stroke-width="2.5"/><rect x="55" y="43" width="13" height="13" rx="3" fill="${p.eye}" stroke-width="2.5"/><rect x="35" y="46" width="3.5" height="3.5" fill="#fff" stroke="none"/><rect x="58" y="46" width="3.5" height="3.5" fill="#fff" stroke="none"/>`
+        + `<path d="M40 70 L60 70 M44 67 L44 73 M50 67 L50 73 M56 67 L56 73" stroke-width="2"/>` },
+    { id: 'horned', name: 'Horned', rarity: 'Rare', def: 1, render: (p) =>
+        `<path d="M37 25 Q31 13 29 8 Q37 13 43 23 Z" fill="url(#bg)" stroke-width="2.5"/><path d="M63 25 Q69 13 71 8 Q63 13 57 23 Z" fill="url(#bg)" stroke-width="2.5"/>`
+        + part.arms() + part.egg() + part.belly() + part.foot(p) + part.blush()
+        + `<path d="M31 41 L45 46" stroke-width="2.5"/><path d="M69 41 L55 46" stroke-width="2.5"/>`
+        + part.almond(40, p) + part.almond(60, p)
+        + `<path d="M43 70 Q50 77 57 70 Z" fill="#fff" stroke-width="2.5"/><path d="M45 71 L46 75 L48 71 Z" fill="#fff" stroke="none"/><path d="M52 71 L54 75 L55 71 Z" fill="#fff" stroke="none"/>` },
+    { id: 'ghost', name: 'Ghosty', rarity: 'Rare', def: 4, render: (p) =>
+        `<path d="M50 16 C70 16 82 33 82 53 L82 88 L74 80 L66 88 L58 80 L50 88 L42 80 L34 88 L26 80 L18 88 L18 53 C18 33 30 16 50 16 Z" fill="url(#bg)" fill-opacity="0.86" stroke-width="3.2"/>`
+        + `<ellipse cx="50" cy="62" rx="16" ry="18" fill="#ffffff" opacity="0.18" stroke="none"/>`
+        + `<ellipse cx="40" cy="48" rx="6.5" ry="9" fill="${p.eye}" stroke-width="2.5"/><ellipse cx="60" cy="48" rx="6.5" ry="9" fill="${p.eye}" stroke-width="2.5"/><circle cx="42" cy="44" r="2.4" fill="#fff" stroke="none"/><circle cx="62" cy="44" r="2.4" fill="#fff" stroke="none"/>`
+        + `<ellipse cx="50" cy="64" rx="4" ry="5" fill="${p.eye}" stroke-width="2"/>` },
+    { id: 'cosmic', name: 'Cosmic', rarity: 'Super Special', def: 4, render: (p) => {
+        const star = (cx, cy, r, fill) => `<path d="M${cx} ${cy - r} L${cx + r * 0.3} ${cy - r * 0.3} L${cx + r} ${cy} L${cx + r * 0.3} ${cy + r * 0.3} L${cx} ${cy + r} L${cx - r * 0.3} ${cy + r * 0.3} L${cx - r} ${cy} L${cx - r * 0.3} ${cy - r * 0.3} Z" fill="${fill}" stroke="none"/>`;
+        return `<path d="M40 28 Q35 13 31 8" stroke-width="3"/><path d="M60 28 Q65 13 69 8" stroke-width="3"/>`
+          + star(31, 7, 5, p.accent) + star(69, 7, 5, p.accent)
+          + part.arms() + part.egg() + part.foot(p)
+          + star(30, 50, 3, '#ffffff') + star(70, 56, 2.5, '#ffffff') + star(58, 80, 2.5, p.accent) + star(40, 82, 2, '#ffffff') + star(68, 40, 2, '#ffffff')
+          + part.almond(40, p) + part.almond(60, p)
+          + star(40, 46, 2, '#fff') + star(60, 46, 2, '#fff')
+          + part.smile(); } },
+    { id: 'royal', name: 'Royal', rarity: 'Super Special', def: 3, render: (p) =>
+        part.arms() + part.egg() + part.belly() + part.foot(p) + part.blush()
+        + part.almond(40, p) + part.almond(60, p) + part.smile()
+        + `<path d="M33 24 L33 12 L41 18 L50 9 L59 18 L67 12 L67 24 Z" fill="#ffd445" stroke-width="2.5"/>`
+        + `<circle cx="33" cy="11" r="2" fill="#ff5a7a" stroke-width="1.5"/><circle cx="50" cy="8" r="2.2" fill="#ff5a7a" stroke-width="1.5"/><circle cx="67" cy="11" r="2" fill="#ff5a7a" stroke-width="1.5"/>`
+        + `<path d="M50 34 L54 39 L50 45 L46 39 Z" fill="#5ad1ff" stroke-width="2"/>` }
+  ];
+  const skinsById = {};
+  SKINS.forEach((s) => { skinsById[s.id] = s; });
+
+  function buildSkin(skin, p) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${p.body[0]}"/><stop offset="100%" stop-color="${p.body[1]}"/></linearGradient>
+<radialGradient id="ag" cx="50%" cy="30%" r="80%"><stop offset="0%" stop-color="${p.accent}"/><stop offset="100%" stop-color="${shade(p.accent, 0.78)}"/></radialGradient>
+${rough('rf', '0.018', '3', '7')}
+</defs>
+<g filter="url(#rf)" stroke="${INK}" stroke-linejoin="round" stroke-linecap="round" fill="none">
+${skin.render(p)}
+</g>
+</svg>`;
+  }
+
+  // --- Progress: unlocked skins/patterns + current selection (localStorage) ---
+  let unlocked, selected;
+  const patMemory = {}; // last-viewed palette per owned skin
+  function loadProgress() {
+    try { unlocked = JSON.parse(localStorage.getItem('fineeyUP_unlocked')) || {}; } catch (e) { unlocked = {}; }
+    if (!unlocked.classic || !unlocked.classic.length) unlocked.classic = [skinsById.classic.def];
+    try { selected = JSON.parse(localStorage.getItem('fineeyUP_selected')); } catch (e) { selected = null; }
+    if (!selected || !skinsById[selected.skin] || !unlocked[selected.skin] || !unlocked[selected.skin].includes(selected.pat)) {
+      selected = { skin: 'classic', pat: skinsById.classic.def };
+    }
+    // Default each owned skin's shown colour to its signature palette when owned.
+    SKINS.forEach((s) => {
+      if (unlocked[s.id] && unlocked[s.id].length) {
+        patMemory[s.id] = unlocked[s.id].includes(s.def) ? s.def : unlocked[s.id][0];
+      }
+    });
+    patMemory[selected.skin] = selected.pat;
+  }
+  const saveUnlocked = () => localStorage.setItem('fineeyUP_unlocked', JSON.stringify(unlocked));
+  const saveSelected = () => localStorage.setItem('fineeyUP_selected', JSON.stringify(selected));
+
+  const RARITY_WEIGHT = { 'Common': 50, 'Rare': 18, 'Super Special': 5 };
+  const lockablePatterns = (id) => { const owned = unlocked[id] || []; return PALETTES.map((_, i) => i).filter((i) => !owned.includes(i)); };
+  const skinLocked = (id) => !unlocked[id] || !unlocked[id].length;
+  const hasLockable = (s) => skinLocked(s.id) || lockablePatterns(s.id).length > 0;
+
+  function weightedSkin() {
+    let total = 0; for (const s of SKINS) total += RARITY_WEIGHT[s.rarity] || 1;
+    let r = Math.random() * total;
+    for (const s of SKINS) { r -= RARITY_WEIGHT[s.rarity] || 1; if (r <= 0) return s; }
+    return SKINS[0];
+  }
+
+  // Pick a random skin (rarity-weighted). New skin -> unlock it; duplicate ->
+  // unlock a random new colour pattern for it. Returns the unlock, or null when
+  // everything is already owned.
+  function rollUnlock() {
+    if (!SKINS.some(hasLockable)) return null;
+    let skin = null;
+    for (let t = 0; t < 14; t++) { const s = weightedSkin(); if (hasLockable(s)) { skin = s; break; } }
+    if (!skin) { const opts = SKINS.filter(hasLockable); skin = opts[Math.floor(Math.random() * opts.length)]; }
+    if (skinLocked(skin.id)) {
+      unlocked[skin.id] = [skin.def]; patMemory[skin.id] = skin.def; saveUnlocked();
+      return { type: 'skin', skin, pat: skin.def };
+    }
+    const rem = lockablePatterns(skin.id);
+    const pat = rem[Math.floor(Math.random() * rem.length)];
+    unlocked[skin.id].push(pat); unlocked[skin.id].sort((a, b) => a - b); saveUnlocked();
+    return { type: 'pattern', skin, pat };
+  }
+
+  function maybeUnlock(chance) {
+    if (Math.random() >= chance) return;
+    const res = rollUnlock();
+    if (res) showToast(res);
+  }
+
+  function activeSkinSVG() { return buildSkin(skinsById[selected.skin], PALETTES[selected.pat]); }
+
+  // --- In-game unlock toast ---
+  const toastEl = document.getElementById('toast');
+  let toastTimer = null, toastTimer2 = null;
+  function showToast(res) {
+    const p = PALETTES[res.pat];
+    const icon = svgToDataURI(buildSkin(res.skin, p));
+    const main = res.type === 'skin' ? 'New skin unlocked!' : 'New colour unlocked!';
+    const sub = res.type === 'skin' ? `${res.skin.name} · ${res.skin.rarity}` : `${res.skin.name} · ${p.name}`;
+    toastEl.innerHTML = `<img src="${icon}" alt=""><div><div class="t-main">${main}</div><div class="t-sub">${sub}</div></div>`;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer); clearTimeout(toastTimer2);
+    requestAnimationFrame(() => toastEl.classList.add('in'));
+    toastTimer = setTimeout(() => {
+      toastEl.classList.remove('in');
+      toastTimer2 = setTimeout(() => toastEl.classList.remove('show'), 300);
+    }, 2600);
+  }
+
+  // --- Inventory UI ---
+  const inventoryEl = document.getElementById('inventory');
+  const rarityClass = (r) => (r === 'Common' ? 'common' : r === 'Rare' ? 'rare' : 'super');
+
+  function renderInventory() {
+    const ownedSkins = SKINS.filter((s) => !skinLocked(s.id)).length;
+    let colours = 0; for (const id in unlocked) colours += (unlocked[id] || []).length;
+
+    const sel = skinsById[selected.skin];
+    const selPal = PALETTES[selected.pat];
+    const swatches = (unlocked[selected.skin] || []).slice().sort((a, b) => a - b).map((i) => {
+      const pp = PALETTES[i];
+      return `<button class="swatch${i === selected.pat ? ' on' : ''}" data-pat="${i}" title="${pp.name}" style="background:linear-gradient(135deg,${pp.body[0]},${pp.body[1]})"></button>`;
+    }).join('');
+
+    const cards = SKINS.map((s) => {
+      const locked = skinLocked(s.id);
+      const selCls = s.id === selected.skin ? ' sel' : '';
+      const inner = locked
+        ? `<div class="lockmark">🔒</div><div class="s-name">???</div><span class="badge ${rarityClass(s.rarity)}">${s.rarity}</span>`
+        : `<img src="${svgToDataURI(buildSkin(s, PALETTES[patMemory[s.id] != null ? patMemory[s.id] : unlocked[s.id][0]]))}" alt=""><div class="s-name">${s.name}</div><span class="badge ${rarityClass(s.rarity)}">${s.rarity}</span>`;
+      return `<div class="skin-card${locked ? ' locked' : ''}${selCls}" data-skin="${s.id}">${inner}</div>`;
+    }).join('');
+
+    inventoryEl.innerHTML = `
+      <div class="panel inv">
+        <div class="inv-head">
+          <h2>Inventory</h2>
+          <button class="icon-btn" id="inv-close">×</button>
+        </div>
+        <div class="inv-preview">
+          <img src="${svgToDataURI(buildSkin(sel, selPal))}" alt="">
+          <div class="p-info">
+            <div class="p-name">${sel.name}</div>
+            <span class="badge ${rarityClass(sel.rarity)}" style="align-self:flex-start">${sel.rarity}</span>
+            <div class="swatches">${swatches}</div>
+          </div>
+        </div>
+        <div class="inv-count">Skins ${ownedSkins}/${SKINS.length} · Colours ${colours}</div>
+        <div class="skin-grid">${cards}</div>
+      </div>`;
+
+    document.getElementById('inv-close').onclick = closeInventory;
+    inventoryEl.querySelectorAll('.skin-card').forEach((c) => {
+      if (c.classList.contains('locked')) return;
+      c.onclick = () => {
+        const id = c.getAttribute('data-skin');
+        selected = { skin: id, pat: (patMemory[id] != null ? patMemory[id] : unlocked[id][0]) };
+        saveSelected(); renderInventory();
+      };
+    });
+    inventoryEl.querySelectorAll('.swatch').forEach((sw) => {
+      sw.onclick = () => {
+        const i = parseInt(sw.getAttribute('data-pat'), 10);
+        selected.pat = i; patMemory[selected.skin] = i; saveSelected(); renderInventory();
+      };
+    });
+  }
+
+  function openInventory() { renderInventory(); inventoryEl.classList.remove('hidden'); }
+  function closeInventory() { inventoryEl.classList.add('hidden'); }
+
   // Phaser's load.image() explicitly refuses data URIs, so pre-load the SVGs as
   // <img> elements and register them with the TextureManager in preload().
   const preloadedImages = {};
+  function preloadSVG(key, svg) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => { preloadedImages[key] = img; resolve(); };
+      img.onerror = () => resolve();
+      img.src = svgToDataURI(svg);
+    });
+  }
   function preloadAllImages() {
-    return Promise.all(Object.entries(SVG).map(([key, svg]) =>
-      new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => { preloadedImages[key] = img; resolve(); };
-        img.onerror = () => { resolve(); };
-        img.src = svgToDataURI(svg);
-      })
-    ));
+    return Promise.all(Object.entries(SVG).map(([key, svg]) => preloadSVG(key, svg)));
   }
 
   class FineeyScene extends Phaser.Scene {
@@ -370,12 +678,13 @@ ${rough('rl', '0.03', '2.4', '9')}
 
       this.score = 0;
       this.lastScoreShown = -1;
+      this.lastThousand = 0;
       this.maxHeightReached = GAME_H;
       this.isDead = false;
       this.platformsUntilEnemy = 8;
       this.targetScrollY = 0;
 
-      this.player = this.physics.add.sprite(GAME_W / 2, GAME_H - 120, 'fineey');
+      this.player = this.physics.add.sprite(GAME_W / 2, GAME_H - 120, 'playerSkin');
       this.player.setDisplaySize(56, 56);
       // Remember the fitted scale so squash/stretch tweens can work relative to it.
       this.playerScale = this.player.scaleX;
@@ -526,6 +835,7 @@ ${rough('rl', '0.03', '2.4', '9')}
       projectile.destroy();
       enemy.destroy();
       this.score += 50;
+      maybeUnlock(0.05); // 5% chance to unlock a skin on a kill
     }
 
     onEnemyTouch(player, enemy) {
@@ -536,6 +846,7 @@ ${rough('rl', '0.03', '2.4', '9')}
         player.body.setVelocityY(JUMP_VEL);
         this.squashPlayer();
         this.score += 25;
+        maybeUnlock(0.05); // 5% chance to unlock a skin on a kill
       } else {
         this.die();
       }
@@ -626,6 +937,10 @@ ${rough('rl', '0.03', '2.4', '9')}
         this.lastScoreShown = this.score;
       }
 
+      // Every 1000 points crossed: 10% chance to unlock a skin.
+      const thousand = Math.floor(this.score / 1000);
+      while (this.lastThousand < thousand) { this.lastThousand++; maybeUnlock(0.10); }
+
       // Use the *target* scroll (not the lerped one) for world generation
       // so platforms/clouds populate ahead of the camera instead of lagging behind it.
       const viewTop = this.targetScrollY;
@@ -706,7 +1021,10 @@ ${rough('rl', '0.03', '2.4', '9')}
 
   async function startGame() {
     overlay.classList.add('hidden');
-    if (!preloadedImages.fineey) await preloadAllImages();
+    inventoryEl.classList.add('hidden');
+    if (!preloadedImages.enemy) await preloadAllImages();
+    // (Re)build the selected skin into the player texture for this run.
+    await preloadSVG('playerSkin', activeSkinSVG());
     if (game) { game.destroy(true); game = null; }
     game = new Phaser.Game({
       type: Phaser.AUTO,
@@ -739,13 +1057,17 @@ ${rough('rl', '0.03', '2.4', '9')}
         <div class="score-display">★ ${score}</div>
         <p>Best ${bestScore}</p>
         <button id="restart-btn">Play Again</button>
+        <button id="inv-btn2" class="ghost-btn">Inventory</button>
       </div>
     `;
     overlay.classList.remove('hidden');
     document.getElementById('restart-btn').addEventListener('click', startGame);
+    document.getElementById('inv-btn2').addEventListener('click', openInventory);
   }
 
+  loadProgress();
   startBtn.addEventListener('click', startGame);
+  document.getElementById('inv-btn').addEventListener('click', openInventory);
 })();
 </script>
 </body>
