@@ -162,7 +162,10 @@
   ];
 
   function buildingRect(b) { return { x: b.x, y: b.y, w: b.w, h: b.h }; }
-  function solids() { return BUILDINGS.map(buildingRect).concat(OBSTACLES); }
+  function solids() {
+    const base = BUILDINGS.map(buildingRect).concat(OBSTACLES);
+    return DECOR ? base.concat(DECOR.colliders) : base;
+  }
 
   // Point just outside a building's door, where you re-emerge.
   function exitPointOf(b) {
@@ -209,8 +212,12 @@
     const fountain = { x: 1300, y: 1080 };
     benches.push({ x: 1186, y: 1080 }, { x: 1414, y: 1080 }, { x: 1300, y: 968 }, { x: 1300, y: 1192 });
     lamps.push({ x: 1180, y: 970 }, { x: 1420, y: 970 }, { x: 1180, y: 1190 }, { x: 1420, y: 1190 });
-    cars.push({ x: 1700, y: 1510, c: '#c0392b' }, { x: 600, y: 1490, c: '#2980b9' }, { x: 2060, y: 360, c: '#e0a82e' });
-    return { trees, bushes, flowers, lamps, benches, cars, fountain };
+    cars.push({ x: 1700, y: 1520, c: '#c0392b' }, { x: 640, y: 1500, c: '#2980b9' }, { x: 560, y: 300, c: '#e0a82e' });
+    // Solid footprints: tree trunks and car bodies block movement.
+    const colliders = [];
+    for (const t of trees) colliders.push({ x: t.x - 9 * t.s, y: t.y - 7 * t.s, w: 18 * t.s, h: 16 * t.s });
+    for (const c of cars) colliders.push({ x: c.x - 31, y: c.y - 13, w: 62, h: 28 });
+    return { trees, bushes, flowers, lamps, benches, cars, fountain, colliders };
   }
 
   // ---------- Game state ----------
@@ -490,7 +497,14 @@
     }
   }
 
-  function dayProgress() { return clamp(1 - dayTimer / dayLength, 0, 1); }
+  // 0 = morning, 1 = night. Driven by how far through the daily routine you are
+  // (so the time-of-day matches the activity), with a gentle real-time drift between tasks.
+  function dayProgress() {
+    const total = Math.max(1, taskQueue ? taskQueue.length : 1);
+    const seg = 1 / total;
+    const elapsed = 1 - clamp(dayTimer / dayLength, 0, 1);
+    return clamp(taskIndex * seg + seg * elapsed * 0.6, 0, 1);
+  }
 
   // ---------- Townsfolk (cosmetic life) ----------
   const SHIRTS = ['#c0563b', '#3b7dc0', '#56b06a', '#b58b3b', '#8e5bb0', '#3bb0a0', '#d06a9b'];
@@ -1440,9 +1454,8 @@
     taskEl.textContent = t ? t.label : 'Sleep!';
   }
   function updateClockText() {
-    const frac = 1 - clamp(dayTimer / dayLength, 0, 1);
-    const mins = 7 * 60 + frac * (17 * 60);
-    const h = Math.floor(mins / 60), m = Math.floor(mins % 60);
+    const hours = 8 + dayProgress() * 15;          // 8:00 → 23:00 across the routine
+    const h = Math.floor(hours), m = Math.floor((hours - h) * 12) * 5;
     clockEl.textContent = `${h}:${m.toString().padStart(2, '0')}`;
   }
 
