@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>The Immortal Snail</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: #10160f;
+      color: #eef3e8;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+    }
+
+    #hud {
+      display: flex;
+      gap: 22px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: #9fb38c;
+      letter-spacing: 0.05em;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 96vw;
+    }
+    #hud .v { color: #eef3e8; font-weight: 800; }
+    #hud .task .v { color: #ffd95e; }
+    #hud .clock .v { color: #8fd0ff; }
+    #hud .day .v { color: #b6f08a; }
+
+    #canvas-wrap { position: relative; line-height: 0; }
+
+    canvas {
+      display: block;
+      border-radius: 14px;
+      background: #2e7d32;
+      border: 1px solid #1c3a18;
+      box-shadow: 0 14px 44px rgba(0,0,0,0.55);
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(8, 14, 7, 0.93);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 14px;
+      text-align: center;
+      padding: 24px;
+    }
+    #overlay.hidden { display: none; }
+    #overlay h1 { font-size: 30px; margin-bottom: 6px; letter-spacing: 0.02em; }
+    #overlay .tag { color: #9fb38c; font-size: 14px; margin-bottom: 18px; }
+    #overlay p { color: #cdd9c2; font-size: 14px; line-height: 1.65; max-width: 440px; margin-bottom: 8px; }
+    #overlay p b { color: #ffd95e; }
+    #overlay .snailword { color: #b6f08a; font-weight: 700; }
+    #overlay .big { font-size: 22px; color: #ff7a7a; font-weight: 800; margin-bottom: 4px; }
+    #overlay .stat { font-size: 16px; color: #eef3e8; margin-bottom: 18px; }
+    #overlay .stat b { color: #b6f08a; }
+
+    button {
+      margin-top: 16px;
+      padding: 13px 30px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #10160f;
+      background: #b6f08a;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: transform 0.08s ease, background 0.15s ease;
+    }
+    button:hover { background: #c8f7a3; transform: translateY(-1px); }
+    button:active { transform: translateY(1px); }
+
+    .controls { color: #8a9c78; font-size: 12px; margin-top: 16px; line-height: 1.7; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div class="day">DAY <span class="v" id="day">1</span></div>
+    <div class="clock">🕗 <span class="v" id="clock">7:00</span></div>
+    <div class="task">TASK: <span class="v" id="task">—</span></div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="game"></canvas>
+    <div id="overlay">
+      <h1>🐌 The Immortal Snail</h1>
+      <div class="tag">Live your life. Don't get touched.</div>
+      <p>You live in a town full of snails. They're slow and harmless...</p>
+      <p>...except <b>one is immortal</b>. It never stops. It is <b>always</b> slowly crawling straight toward <b>you</b> — and if it ever touches you, you die.</p>
+      <p>You don't know which snail it is. <span class="snailword">Watch their eyes</span> — every other snail wanders, but the immortal's gaze is always locked on you.</p>
+      <p>Run your daily routine — <b>Work, Eat, Sleep</b> — before the day ends. Survive as many days as you can. It only gets closer.</p>
+      <div class="controls">
+        WASD / Arrow Keys — move &nbsp;·&nbsp; Drag on touch &nbsp;·&nbsp; R — restart<br>
+        Normal snails just make you stumble. Only the immortal kills.
+      </div>
+      <button id="startBtn">Start Living</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Canvas / sizing ----------
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  let VIEW_W = 720, VIEW_H = 520;
+  function sizeCanvas() {
+    const maxW = Math.min(window.innerWidth - 24, 860);
+    const maxH = Math.min(window.innerHeight - 120, 620);
+    VIEW_W = Math.max(360, Math.floor(maxW));
+    VIEW_H = Math.max(320, Math.floor(maxH));
+    canvas.width = VIEW_W * DPR;
+    canvas.height = VIEW_H * DPR;
+    canvas.style.width = VIEW_W + 'px';
+    canvas.style.height = VIEW_H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  sizeCanvas();
+  window.addEventListener('resize', sizeCanvas);
+
+  // ---------- World ----------
+  const WORLD_W = 2400, WORLD_H = 1800;
+
+  // Buildings the player visits. door = entry zone (also where the player "enters").
+  const BUILDINGS = [
+    { id: 'home',  name: 'Home',   x: 180,  y: 180,  w: 300, h: 220, color: '#7a5c43', roof: '#5e4633', door: { x: 300, y: 400, w: 90, h: 36 } },
+    { id: 'work',  name: 'Work',   x: 1860, y: 1360, w: 360, h: 280, color: '#5b6b86', roof: '#445270', door: { x: 1980, y: 1330, w: 110, h: 36 } },
+    { id: 'diner', name: 'Diner',  x: 1880, y: 220,  w: 300, h: 220, color: '#9a4b4b', roof: '#7a3838', door: { x: 1990, y: 440, w: 90, h: 36 } },
+    { id: 'shop',  name: 'Shop',   x: 240,  y: 1320, w: 320, h: 240, color: '#4f7a55', roof: '#3c5e41', door: { x: 360, y: 1300, w: 100, h: 36 } },
+  ];
+
+  // Solid obstacles (ponds, hedges) — block movement, add maze pressure.
+  const OBSTACLES = [
+    { x: 980,  y: 760,  w: 440, h: 120, kind: 'pond'  },
+    { x: 700,  y: 700,  w: 60,  h: 360, kind: 'hedge' },
+    { x: 1640, y: 760,  w: 60,  h: 380, kind: 'hedge' },
+    { x: 1080, y: 300,  w: 360, h: 60,  kind: 'hedge' },
+    { x: 1080, y: 1320, w: 380, h: 60,  kind: 'hedge' },
+    { x: 480,  y: 980,  w: 60,  h: 320, kind: 'hedge' },
+    { x: 1860, y: 900,  w: 60,  h: 320, kind: 'hedge' },
+  ];
+
+  function buildingRect(b) { return { x: b.x, y: b.y, w: b.w, h: b.h }; }
+  function solids() { return BUILDINGS.map(buildingRect).concat(OBSTACLES); }
+
+  // ---------- Game state ----------
+  const PLAYER_R = 15;
+  const PLAYER_SPEED = 232;
+
+  let state = 'menu'; // menu | playing | dead
+  let player, snails, immortal, day, dayTimer, dayLength, taskQueue, taskIndex, dread;
+  let stumbleT = 0;
+  let lastTime = 0;
+  let deathReason = '';
+  let bestDays = 0;
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function dist(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return Math.hypot(dx, dy); }
+  function byId(id) { return BUILDINGS.find(b => b.id === id); }
+
+  // ---------- Snails ----------
+  function makeSnail(x, y) {
+    return {
+      x, y,
+      r: 11,
+      heading: rand(0, Math.PI * 2),
+      lookX: 0, lookY: 0,         // direction eyestalks point (smoothed)
+      turnTimer: rand(0.6, 2.2),
+      speed: rand(20, 36),
+      hue: Math.floor(rand(28, 44)), // brownish shells, slight variety
+    };
+  }
+
+  function spawnAwayFromPlayer(minD) {
+    for (let i = 0; i < 60; i++) {
+      const x = rand(80, WORLD_W - 80), y = rand(80, WORLD_H - 80);
+      if (insideAnySolid(x, y, 16)) continue;
+      if (dist(x, y, player.x, player.y) < minD) continue;
+      return { x, y };
+    }
+    return { x: WORLD_W / 2, y: WORLD_H / 2 };
+  }
+
+  function insideAnySolid(x, y, pad) {
+    for (const r of solids()) {
+      if (x > r.x - pad && x < r.x + r.w + pad && y > r.y - pad && y < r.y + r.h + pad) return true;
+    }
+    return false;
+  }
+
+  // ---------- Day setup ----------
+  function routineForDay(d) {
+    // Always Work -> Eat -> Sleep; later days add a Shop errand and reorder slightly.
+    const base = [
+      { b: 'work',  label: 'Go to Work' },
+      { b: 'diner', label: 'Eat at the Diner' },
+    ];
+    if (d >= 3) base.splice(1, 0, { b: 'shop', label: 'Buy groceries' });
+    if (d >= 6) base.push({ b: 'diner', label: 'Grab dinner' });
+    base.push({ b: 'home', label: 'Go Home & Sleep' });
+    return base;
+  }
+
+  function startDay(d, keepImmortal) {
+    day = d;
+    taskQueue = routineForDay(d);
+    taskIndex = 0;
+    dayLength = Math.max(48, 86 - (d - 1) * 5);  // seconds; tightens each day
+    dayTimer = dayLength;
+
+    // Snail population grows with the day.
+    const count = Math.min(6 + d * 3, 40);
+    snails = [];
+    for (let i = 0; i < count; i++) {
+      const p = spawnAwayFromPlayer(180);
+      snails.push(makeSnail(p.x, p.y));
+    }
+
+    if (!keepImmortal) {
+      const p = spawnAwayFromPlayer(820);
+      immortal = makeSnail(p.x, p.y);
+      immortal.r = 12;
+    }
+    // Immortal gets a touch faster every day. The true horror: it never resets.
+    immortal.speed = 46 + (d - 1) * 5.5;
+    immortal.r = 12;
+    updateHud();
+  }
+
+  function startGame() {
+    player = { x: byId('home').door.x + 45, y: byId('home').door.y + 60, vx: 0, vy: 0 };
+    dread = 0;
+    stumbleT = 0;
+    startDay(1, false);
+    state = 'playing';
+    overlay.classList.add('hidden');
+    initAudio();
+  }
+
+  function sleepAndAdvance() {
+    // Night passes — the immortal keeps crawling toward your home while you sleep.
+    const home = byId('home');
+    const hx = home.door.x + 45, hy = home.door.y + 60;
+    const a = Math.atan2(hy - immortal.y, hx - immortal.x);
+    const nightCrawl = clamp(dist(immortal.x, immortal.y, hx, hy) * 0.18, 60, 220);
+    immortal.x += Math.cos(a) * nightCrawl;
+    immortal.y += Math.sin(a) * nightCrawl;
+    // Wake up at home.
+    player.x = hx; player.y = hy; player.vx = 0; player.vy = 0;
+    startDay(day + 1, true);
+  }
+
+  function die(reason) {
+    deathReason = reason;
+    bestDays = Math.max(bestDays, day);
+    state = 'dead';
+    showDeath();
+  }
+
+  // ---------- Input ----------
+  const keys = {};
+  window.addEventListener('keydown', e => {
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+    keys[e.key.toLowerCase()] = true;
+    if (e.key.toLowerCase() === 'r' && state !== 'menu') startGame();
+  });
+  window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+  // Touch / drag joystick (relative to first touch point).
+  let touchActive = false, touchOX = 0, touchOY = 0, touchDX = 0, touchDY = 0;
+  function tpos(e) { const r = canvas.getBoundingClientRect(); const t = e.touches[0]; return { x: t.clientX - r.left, y: t.clientY - r.top }; }
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (state !== 'playing') return;
+    const p = tpos(e); touchActive = true; touchOX = p.x; touchOY = p.y; touchDX = 0; touchDY = 0;
+  }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (!touchActive) return;
+    const p = tpos(e); touchDX = p.x - touchOX; touchDY = p.y - touchOY;
+  }, { passive: false });
+  canvas.addEventListener('touchend', e => { e.preventDefault(); touchActive = false; touchDX = 0; touchDY = 0; }, { passive: false });
+
+  function inputVector() {
+    let dx = 0, dy = 0;
+    if (keys['arrowleft'] || keys['a']) dx -= 1;
+    if (keys['arrowright'] || keys['d']) dx += 1;
+    if (keys['arrowup'] || keys['w']) dy -= 1;
+    if (keys['arrowdown'] || keys['s']) dy += 1;
+    if (touchActive) {
+      const m = Math.hypot(touchDX, touchDY);
+      if (m > 12) { dx = touchDX / m; dy = touchDY / m; }
+    }
+    const m = Math.hypot(dx, dy);
+    if (m > 0) { dx /= m; dy /= m; }
+    return { dx, dy };
+  }
+
+  // ---------- Collision ----------
+  function resolveCircleRect(px, py, r, rect) {
+    const cx = clamp(px, rect.x, rect.x + rect.w);
+    const cy = clamp(py, rect.y, rect.y + rect.h);
+    const dx = px - cx, dy = py - cy;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= r * r) return null;
+    if (d2 > 0.0001) {
+      const d = Math.sqrt(d2);
+      return { x: px + (dx / d) * (r - d), y: py + (dy / d) * (r - d) };
+    }
+    // center inside: push out along smallest axis
+    const left = px - rect.x, right = rect.x + rect.w - px;
+    const top = py - rect.y, bottom = rect.y + rect.h - py;
+    const m = Math.min(left, right, top, bottom);
+    if (m === left) return { x: rect.x - r, y: py };
+    if (m === right) return { x: rect.x + rect.w + r, y: py };
+    if (m === top) return { x: px, y: rect.y - r };
+    return { x: px, y: rect.y + rect.h + r };
+  }
+
+  // ---------- Update ----------
+  function update(dt) {
+    // Day clock
+    dayTimer -= dt;
+    if (dayTimer <= 0) { die('You ran out of time and collapsed before finishing your day.'); return; }
+
+    // Player movement
+    const { dx, dy } = inputVector();
+    const slow = stumbleT > 0 ? 0.4 : 1;
+    if (stumbleT > 0) stumbleT -= dt;
+    player.x += dx * PLAYER_SPEED * slow * dt;
+    player.y += dy * PLAYER_SPEED * slow * dt;
+    player.x = clamp(player.x, PLAYER_R, WORLD_W - PLAYER_R);
+    player.y = clamp(player.y, PLAYER_R, WORLD_H - PLAYER_R);
+    for (const r of solids()) {
+      const fix = resolveCircleRect(player.x, player.y, PLAYER_R, r);
+      if (fix) { player.x = fix.x; player.y = fix.y; }
+    }
+
+    // Normal snails: wander + gentle obstacle avoidance
+    for (const s of snails) {
+      s.turnTimer -= dt;
+      if (s.turnTimer <= 0) { s.heading += rand(-1.2, 1.2); s.turnTimer = rand(0.7, 2.4); }
+      const nx = s.x + Math.cos(s.heading) * s.speed * dt;
+      const ny = s.y + Math.sin(s.heading) * s.speed * dt;
+      if (nx < 30 || nx > WORLD_W - 30 || ny < 30 || ny > WORLD_H - 30 || insideAnySolid(nx, ny, s.r + 2)) {
+        s.heading += Math.PI * 0.6 + rand(-0.4, 0.4); // bounce away
+      } else {
+        s.x = nx; s.y = ny;
+      }
+      // eyestalks follow movement direction
+      const lx = Math.cos(s.heading), ly = Math.sin(s.heading);
+      s.lookX += (lx - s.lookX) * 0.1; s.lookY += (ly - s.lookY) * 0.1;
+      // stumble on contact
+      if (stumbleT <= 0 && dist(s.x, s.y, player.x, player.y) < s.r + PLAYER_R) {
+        stumbleT = 0.55;
+        const a = Math.atan2(player.y - s.y, player.x - s.x);
+        player.x += Math.cos(a) * 14; player.y += Math.sin(a) * 14;
+      }
+    }
+
+    // Immortal: relentless homing. Eyes ALWAYS on you.
+    {
+      const a = Math.atan2(player.y - immortal.y, player.x - immortal.x);
+      immortal.x += Math.cos(a) * immortal.speed * dt;
+      immortal.y += Math.sin(a) * immortal.speed * dt;
+      const lx = player.x - immortal.x, ly = player.y - immortal.y;
+      const m = Math.hypot(lx, ly) || 1;
+      immortal.lookX = lx / m; immortal.lookY = ly / m;
+      if (dist(immortal.x, immortal.y, player.x, player.y) < immortal.r + PLAYER_R - 2) {
+        die('The immortal snail caught you. It always does, eventually.');
+        return;
+      }
+    }
+
+    // Dread by proximity to the immortal
+    const d = dist(immortal.x, immortal.y, player.x, player.y);
+    const target = clamp(1 - d / 560, 0, 1);
+    dread += (target - dread) * Math.min(1, dt * 4);
+    updateHeartbeat(dread);
+
+    // Task completion
+    const task = taskQueue[taskIndex];
+    if (task) {
+      const b = byId(task.b);
+      const dz = b.door;
+      const inDoor = player.x > dz.x - 6 && player.x < dz.x + dz.w + 6 && player.y > dz.y - 30 && player.y < dz.y + dz.h + 10;
+      if (inDoor) {
+        if (task.b === 'home' && taskIndex === taskQueue.length - 1) {
+          sleepAndAdvance();
+        } else {
+          taskIndex++;
+          updateHud();
+        }
+      }
+    }
+  }
+
+  // ---------- Render ----------
+  let cam = { x: 0, y: 0 };
+  function render() {
+    cam.x = clamp(player.x - VIEW_W / 2, 0, WORLD_W - VIEW_W);
+    cam.y = clamp(player.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
+    if (WORLD_W < VIEW_W) cam.x = (WORLD_W - VIEW_W) / 2;
+    if (WORLD_H < VIEW_H) cam.y = (WORLD_H - VIEW_H) / 2;
+
+    ctx.clearRect(0, 0, VIEW_W, VIEW_H);
+    ctx.save();
+    ctx.translate(-cam.x, -cam.y);
+
+    drawGround();
+    drawPaths();
+    for (const o of OBSTACLES) drawObstacle(o);
+    for (const b of BUILDINGS) drawBuilding(b);
+    drawTaskDoor();
+
+    for (const s of snails) drawSnail(s, false);
+    drawSnail(immortal, false); // visually identical — the tell is its behavior
+    drawPlayer();
+
+    ctx.restore();
+
+    drawDread();
+    drawTaskArrow();
+    drawMinimap();
+    drawClockBar();
+  }
+
+  function drawGround() {
+    // base grass already the canvas bg; add subtle checker for motion readability
+    const tile = 80;
+    const x0 = Math.floor(cam.x / tile) * tile;
+    const y0 = Math.floor(cam.y / tile) * tile;
+    for (let x = x0; x < cam.x + VIEW_W + tile; x += tile) {
+      for (let y = y0; y < cam.y + VIEW_H + tile; y += tile) {
+        if (((x / tile) + (y / tile)) % 2 === 0) {
+          ctx.fillStyle = 'rgba(255,255,255,0.025)';
+          ctx.fillRect(x, y, tile, tile);
+        }
+      }
+    }
+  }
+
+  function drawPaths() {
+    ctx.strokeStyle = '#b89b6e';
+    ctx.lineWidth = 46;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.5;
+    // connect building doors through a rough loop
+    const pts = [byId('home').door, byId('diner').door, byId('work').door, byId('shop').door, byId('home').door];
+    ctx.beginPath();
+    pts.forEach((d, i) => {
+      const x = d.x + d.w / 2, y = d.y + d.h / 2;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawObstacle(o) {
+    if (o.kind === 'pond') {
+      ctx.fillStyle = '#3a78b5';
+      roundRect(o.x, o.y, o.w, o.h, 26); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      roundRect(o.x + 14, o.y + 12, o.w - 28, o.h * 0.4, 18); ctx.fill();
+    } else {
+      ctx.fillStyle = '#2f5a2c';
+      roundRect(o.x, o.y, o.w, o.h, 10); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      roundRect(o.x, o.y + o.h - 8, o.w, 8, 6); ctx.fill();
+    }
+  }
+
+  function drawBuilding(b) {
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    roundRect(b.x + 8, b.y + 12, b.w, b.h, 12); ctx.fill();
+    ctx.fillStyle = b.color;
+    roundRect(b.x, b.y, b.w, b.h, 12); ctx.fill();
+    // roof band
+    ctx.fillStyle = b.roof;
+    roundRect(b.x, b.y, b.w, 44, 12); ctx.fill();
+    ctx.fillRect(b.x, b.y + 32, b.w, 12);
+    // windows
+    ctx.fillStyle = 'rgba(255,236,170,0.85)';
+    const wy = b.y + b.h * 0.42;
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(b.x + 26 + i * (b.w - 52) / 3, wy, 34, 34);
+    }
+    // door marker
+    const d = b.door;
+    ctx.fillStyle = '#2c1d12';
+    roundRect(d.x, d.y, d.w, d.h, 6); ctx.fill();
+    // label
+    ctx.fillStyle = '#fff';
+    ctx.font = '700 18px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(b.name, b.x + b.w / 2, b.y + 28);
+    ctx.textAlign = 'left';
+  }
+
+  function drawTaskDoor() {
+    const task = taskQueue[taskIndex];
+    if (!task) return;
+    const b = byId(task.b), d = b.door;
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+    ctx.strokeStyle = `rgba(255,217,94,${0.5 + pulse * 0.5})`;
+    ctx.lineWidth = 4;
+    roundRect(d.x - 6, d.y - 6, d.w + 12, d.h + 12, 8); ctx.stroke();
+  }
+
+  function drawSnail(s, _hint) {
+    // shell
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    // body
+    ctx.fillStyle = '#d8cdb6';
+    ctx.beginPath();
+    ctx.ellipse(s.lookX * 5, s.lookY * 5, s.r * 0.9, s.r * 0.62, Math.atan2(s.lookY, s.lookX), 0, Math.PI * 2);
+    ctx.fill();
+    // shell spiral
+    ctx.fillStyle = `hsl(${s.hue}, 45%, 42%)`;
+    ctx.beginPath(); ctx.arc(0, 0, s.r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `hsl(${s.hue}, 50%, 28%)`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let a = 0, rr = s.r - 2; a < Math.PI * 3.4; a += 0.3, rr -= s.r / 14) {
+      const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    // eyestalks — the behavioral tell. Point where the snail looks.
+    const hx = s.lookX, hy = s.lookY;
+    const ex = hx * (s.r + 4), ey = hy * (s.r + 4);
+    const perpX = -hy, perpY = hx;
+    for (const sgn of [-1, 1]) {
+      const sx = ex + perpX * sgn * 3.2, sy = ey + perpY * sgn * 3.2;
+      ctx.strokeStyle = '#d8cdb6'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(hx * (s.r - 2) + perpX * sgn * 3, hy * (s.r - 2) + perpY * sgn * 3); ctx.lineTo(sx, sy); ctx.stroke();
+      ctx.fillStyle = '#1c1c1c';
+      ctx.beginPath(); ctx.arc(sx, sy, 2.1, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawPlayer() {
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.ellipse(0, PLAYER_R - 2, PLAYER_R * 0.9, PLAYER_R * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    // body
+    ctx.fillStyle = stumbleT > 0 ? '#ffb3b3' : '#ffe0b8';
+    ctx.beginPath(); ctx.arc(0, 0, PLAYER_R, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3b6fd4';
+    roundRect(-PLAYER_R, 1, PLAYER_R * 2, PLAYER_R, 5); ctx.fill();
+    // hair
+    ctx.fillStyle = '#5a3a22';
+    ctx.beginPath(); ctx.arc(0, -3, PLAYER_R * 0.78, Math.PI, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // ---------- HUD overlays ----------
+  function drawDread() {
+    if (dread <= 0.02) return;
+    const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.25, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.7);
+    const a = dread * 0.6;
+    g.addColorStop(0, 'rgba(180,0,0,0)');
+    g.addColorStop(1, `rgba(150,0,0,${a})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    if (dread > 0.78) {
+      ctx.fillStyle = `rgba(255,80,80,${(dread - 0.78) * 1.4})`;
+      ctx.font = '700 15px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('IT\'S CLOSE', VIEW_W / 2, 30);
+      ctx.textAlign = 'left';
+    }
+  }
+
+  function drawTaskArrow() {
+    const task = taskQueue[taskIndex];
+    if (!task) return;
+    const b = byId(task.b);
+    const tx = b.x + b.w / 2 - cam.x, ty = b.y + b.h / 2 - cam.y;
+    if (tx > 20 && tx < VIEW_W - 20 && ty > 20 && ty < VIEW_H - 20) return; // on screen
+    const cx = VIEW_W / 2, cy = VIEW_H / 2;
+    const a = Math.atan2(ty - cy, tx - cx);
+    const rx = cx + Math.cos(a) * (Math.min(VIEW_W, VIEW_H) / 2 - 36);
+    const ry = cy + Math.sin(a) * (Math.min(VIEW_W, VIEW_H) / 2 - 36);
+    ctx.save();
+    ctx.translate(rx, ry); ctx.rotate(a);
+    ctx.fillStyle = '#ffd95e';
+    ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-10, -9); ctx.lineTo(-10, 9); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMinimap() {
+    const mw = 132, mh = mw * (WORLD_H / WORLD_W);
+    const px = VIEW_W - mw - 12, py = 12;
+    const sx = mw / WORLD_W, sy = mh / WORLD_H;
+    ctx.fillStyle = 'rgba(10,18,8,0.66)';
+    roundRect(px, py, mw, mh, 8); ctx.fill();
+    ctx.strokeStyle = 'rgba(182,240,138,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+    for (const b of BUILDINGS) {
+      ctx.fillStyle = b.id === taskQueue[taskIndex]?.b ? '#ffd95e' : 'rgba(220,220,220,0.6)';
+      ctx.fillRect(px + b.x * sx, py + b.y * sy, Math.max(3, b.w * sx), Math.max(3, b.h * sy));
+    }
+    // snails (all identical dots — no free reveal)
+    ctx.fillStyle = 'rgba(120,90,60,0.9)';
+    for (const s of snails) ctx.fillRect(px + s.x * sx - 1, py + s.y * sy - 1, 2, 2);
+    ctx.fillStyle = 'rgba(120,90,60,0.9)';
+    ctx.fillRect(px + immortal.x * sx - 1, py + immortal.y * sy - 1, 2, 2);
+    // player
+    ctx.fillStyle = '#7cd0ff';
+    ctx.beginPath(); ctx.arc(px + player.x * sx, py + player.y * sy, 2.6, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawClockBar() {
+    const w = Math.min(VIEW_W - 24, 260);
+    const x = (VIEW_W - w) / 2, y = VIEW_H - 18;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    roundRect(x, y, w, 8, 4); ctx.fill();
+    const frac = clamp(dayTimer / dayLength, 0, 1);
+    ctx.fillStyle = frac > 0.3 ? '#8fd0ff' : '#ff7a7a';
+    roundRect(x, y, w * frac, 8, 4); ctx.fill();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // ---------- HUD text ----------
+  const dayEl = document.getElementById('day');
+  const clockEl = document.getElementById('clock');
+  const taskEl = document.getElementById('task');
+  function updateHud() {
+    dayEl.textContent = day;
+    const t = taskQueue[taskIndex];
+    taskEl.textContent = t ? t.label : 'Done — sleep!';
+  }
+  function updateClockText() {
+    // Map remaining time to a clock from 07:00 -> 24:00
+    const frac = 1 - clamp(dayTimer / dayLength, 0, 1);
+    const mins = 7 * 60 + frac * (17 * 60);
+    const h = Math.floor(mins / 60), m = Math.floor(mins % 60);
+    clockEl.textContent = `${h}:${m.toString().padStart(2, '0')}`;
+  }
+
+  // ---------- Audio (subtle heartbeat) ----------
+  let actx = null, hbTimer = 0;
+  function initAudio() {
+    if (actx) return;
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; }
+  }
+  function updateHeartbeat(level) {
+    if (!actx) return;
+    if (level < 0.18) return;
+    const interval = 1.05 - level * 0.7; // faster as it nears
+    hbTimer -= 1 / 60;
+    if (hbTimer <= 0) {
+      hbTimer = interval;
+      thump(level);
+    }
+  }
+  function thump(level) {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.value = 56; o.type = 'sine';
+    o.connect(g); g.connect(actx.destination);
+    const now = actx.currentTime;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.08 + level * 0.16, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+    o.start(now); o.stop(now + 0.2);
+  }
+
+  // ---------- Overlays ----------
+  const overlay = document.getElementById('overlay');
+  const startBtn = document.getElementById('startBtn');
+  startBtn.addEventListener('click', () => { if (actx) actx.resume(); startGame(); });
+
+  function showDeath() {
+    overlay.classList.remove('hidden');
+    overlay.innerHTML = `
+      <div class="big">🐌 You died.</div>
+      <p>${deathReason}</p>
+      <div class="stat">You survived <b>${day}</b> day${day === 1 ? '' : 's'}.${bestDays > day ? ` &nbsp; Best: <b>${bestDays}</b>` : ''}</div>
+      <button id="againBtn">Live Again</button>
+      <div class="controls">WASD / Arrows to move · watch the eyes · R to restart</div>
+    `;
+    document.getElementById('againBtn').addEventListener('click', startGame);
+  }
+
+  // ---------- Main loop ----------
+  function frame(t) {
+    const dt = Math.min(0.05, (t - lastTime) / 1000 || 0);
+    lastTime = t;
+    if (state === 'playing') {
+      update(dt);
+      if (state === 'playing') { updateClockText(); render(); }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

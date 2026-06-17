@@ -111,5 +111,20 @@
       "emoji": "🏃",
       "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/rail-dash/"
     }
+    ,{
+      "id": "immortal-snail",
+      "name": "The Immortal Snail",
+      "description": "Live your daily life in a town full of snails — get to work, eat, get home to sleep before the day ends. They're slow and harmless... except one is immortal, always crawling straight at you, and a single touch kills. You don't know which it is. Watch their eyes. Survive as many days as you can.",
+      "controls": [
+        "WASD / Arrow Keys — move",
+        "Drag on touch devices",
+        "R — restart",
+        "Only the immortal snail kills — others just make you stumble"
+      ],
+      "category": "action",
+      "color": "#7fb069",
+      "emoji": "🐌",
+      "url": "https://mayzelf.github.io/mayzelf_minigames_games/games/immortal-snail/"
+    }
   ]
 }
